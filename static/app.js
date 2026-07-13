@@ -495,6 +495,15 @@ function populateSelectors() {
             selectClassroomView.value = nonNormalClassroom.id;
         }
     }
+
+    // 預設將 班級課表排課 與 教師個人課表 的選單選中「班級教室」
+    const defaultCr = classrooms.find(cr => cr.name === "班級教室");
+    if (defaultCr) {
+        selectClassroom.value = defaultCr.id;
+        if (teacherSelectClassroom) {
+            teacherSelectClassroom.value = defaultCr.id;
+        }
+    }
 }
 
 // --- 更新上方班級顯示狀態與設定預設教室 ---
@@ -1577,6 +1586,20 @@ function populateMgtSelectors() {
         opt.textContent = t.name;
         mgtSelectTeacher.appendChild(opt);
     });
+
+    // 教室 (新增填充)
+    if (mgtSelectClassroomName) {
+        mgtSelectClassroomName.innerHTML = "";
+        classrooms.forEach(cr => {
+            const opt = document.createElement("option");
+            opt.value = cr.name;
+            opt.textContent = cr.name;
+            mgtSelectClassroomName.appendChild(opt);
+        });
+        if (classrooms.some(cr => cr.name === "班級教室")) {
+            mgtSelectClassroomName.value = "班級教室";
+        }
+    }
 
     renderMgtCoursesList();
 }
