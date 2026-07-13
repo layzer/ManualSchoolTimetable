@@ -25,3 +25,14 @@ wheels/
 .agent/
 .agents/
 TODO.md
+
+# Temporary scripts
+patch_app.py
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+
+# Log files
+*.log
