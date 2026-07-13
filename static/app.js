@@ -1419,7 +1419,7 @@ async function processCSVImport(text, type) {
             entries.push({
                 class_name: className,
                 subject: subject,
-                periods: parseInt(cols[2]) || 1,
+                periods: parseFloat(cols[2]) || 1,
                 teacher_name: (cols[3] || "").trim(),
                 classroom_name: (cols[4] || "").trim() || null,
                 week_type: (cols[5] || "EVERY").trim().toUpperCase()

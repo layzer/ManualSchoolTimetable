@@ -550,6 +550,121 @@
                     </p>
                 </div>
 
+                <!-- Section 2: Import/Export System Data -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-database"></i> 完整系統資料匯入/匯出</h3>
+                    </div>
+                    <div style="display: flex; gap: 16px; align-items: center;">
+                        <button id="btn-export-system" class="btn btn-primary">
+                            <i class="fa-solid fa-download"></i> 匯出系統備份 (JSON)
+                        </button>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="file" id="input-import-system" accept=".json" style="display: none;">
+                            <button id="btn-import-system" class="btn btn-secondary"
+                                onclick="document.getElementById('input-import-system').click()">
+                                <i class="fa-solid fa-upload"></i> 匯入系統備份 (JSON)
+                            </button>
+                            <span style="font-size: 12px; color: var(--accent-pink);">⚠️ 匯入將覆蓋現有資料庫！</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 新增：CSV 資料匯入 -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-file-import"></i> 系統資料匯入 (CSV)</h3>
+                    </div>
+
+                    <div class="management-grid">
+                        <div class="mgt-card">
+                            <h4>1. 匯入教師與不可排課</h4>
+                            <p class="helper-text">格式：教師姓名, 週一, 週二, 週三, 週四, 週五<br>(空堂以分號隔開，若教師不存在會自動建立)</p>
+                            <div style="margin-top: 10px;">
+                                <input type="file" id="input-import-teachers-csv" accept=".csv,.txt"
+                                    style="display:none;">
+                                <button class="btn btn-secondary btn-sm"
+                                    onclick="document.getElementById('input-import-teachers-csv').click()">
+                                    <i class="fa-solid fa-upload"></i> 上傳 CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mgt-card">
+                            <h4>2. 匯入專科教室</h4>
+                            <p class="helper-text">格式：教室名稱,
+                                類型(普通/自然/音樂/美勞/體育/圖書館)<br>（不需要容納人數，依類型對應班級教室/自然/音樂/美勞/體育/圖書館）</p>
+                            <div style="margin-top: 10px;">
+                                <input type="file" id="input-import-classrooms-csv" accept=".csv,.txt"
+                                    style="display:none;">
+                                <button class="btn btn-secondary btn-sm"
+                                    onclick="document.getElementById('input-import-classrooms-csv').click()">
+                                    <i class="fa-solid fa-upload"></i> 上傳 CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mgt-card">
+                            <h4>3. 匯入班級科目</h4>
+                            <p class="helper-text">格式：班級代號(名稱), 科目, 節數, 教師, 教室(可空白)</p>
+                            <div style="margin-top: 10px;">
+                                <input type="file" id="input-import-courses-csv" accept=".csv,.txt"
+                                    style="display:none;">
+                                <button class="btn btn-secondary btn-sm"
+                                    onclick="document.getElementById('input-import-courses-csv').click()">
+                                    <i class="fa-solid fa-upload"></i> 上傳 CSV
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Export CSV -->
+                <!-- Section 3: Export Timetables -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-file-export"></i> 匯出課表</h3>
+                    </div>
+                    <div class="management-grid">
+                        <div class="mgt-card">
+                            <h4><i class="fa-solid fa-school"></i> 班級與專科教室課表</h4>
+                            <div
+                                style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 100%;">
+                                <button id="btn-export-class-csv" class="btn btn-secondary" style="width: 100%;"><i
+                                        class="fa-solid fa-file-csv"></i> 匯出全部班級 CSV</button>
+                                <button id="btn-export-class-pdf" class="btn btn-primary" style="width: 100%;"><i
+                                        class="fa-solid fa-file-pdf"></i> 一鍵匯出全體班級與專科教室 PDF (A4直向)</button>
+                            </div>
+                        </div>
+                        <div class="mgt-card">
+                            <h4><i class="fa-solid fa-user-tie"></i> 教師個人課表</h4>
+                            <div
+                                style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 100%;">
+                                <button id="btn-export-teacher-csv" class="btn btn-secondary" style="width: 100%;"><i
+                                        class="fa-solid fa-file-csv"></i> 匯出全部教師 CSV</button>
+                                <button id="btn-export-teacher-pdf" class="btn btn-primary" style="width: 100%;"><i
+                                        class="fa-solid fa-file-pdf"></i> 一鍵匯出全體教師 PDF (A4直向)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 新增：設定檔編輯器 -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-code"></i> 班級與節次設定檔 (config.json)</h3>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <textarea id="setting-config-editor"
+                            style="width: 100%; height: 300px; font-family: monospace; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color);"></textarea>
+                        <div style="margin-top: 10px; text-align: right;">
+                            <button id="btn-save-config" class="btn btn-primary">
+                                <i class="fa-solid fa-save"></i> 儲存設定並重整
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Section 1: Class Management -->
                 <div class="course-management-section">
                     <div class="management-title">
@@ -610,52 +725,6 @@
                                         <!-- JS will populate -->
                                     </tbody>
                                 </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 新增：設定檔編輯器 -->
-                <div class="course-management-section">
-                    <div class="management-title">
-                        <h3><i class="fa-solid fa-code"></i> 班級與節次設定檔 (config.json)</h3>
-                    </div>
-                    <div style="margin-top: 10px;">
-                        <textarea id="setting-config-editor"
-                            style="width: 100%; height: 300px; font-family: monospace; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color);"></textarea>
-                        <div style="margin-top: 10px; text-align: right;">
-                            <button id="btn-save-config" class="btn btn-primary">
-                                <i class="fa-solid fa-save"></i> 儲存設定並重整
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Section 3: Export CSV -->
-                <!-- Section 3: Export Timetables -->
-                <div class="course-management-section">
-                    <div class="management-title">
-                        <h3><i class="fa-solid fa-file-export"></i> 匯出課表</h3>
-                    </div>
-                    <div class="management-grid">
-                        <div class="mgt-card">
-                            <h4><i class="fa-solid fa-school"></i> 班級與專科教室課表</h4>
-                            <div
-                                style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 100%;">
-                                <button id="btn-export-class-csv" class="btn btn-secondary" style="width: 100%;"><i
-                                        class="fa-solid fa-file-csv"></i> 匯出全部班級 CSV</button>
-                                <button id="btn-export-class-pdf" class="btn btn-primary" style="width: 100%;"><i
-                                        class="fa-solid fa-file-pdf"></i> 一鍵匯出全體班級與專科教室 PDF (A4直向)</button>
-                            </div>
-                        </div>
-                        <div class="mgt-card">
-                            <h4><i class="fa-solid fa-user-tie"></i> 教師個人課表</h4>
-                            <div
-                                style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 100%;">
-                                <button id="btn-export-teacher-csv" class="btn btn-secondary" style="width: 100%;"><i
-                                        class="fa-solid fa-file-csv"></i> 匯出全部教師 CSV</button>
-                                <button id="btn-export-teacher-pdf" class="btn btn-primary" style="width: 100%;"><i
-                                        class="fa-solid fa-file-pdf"></i> 一鍵匯出全體教師 PDF (A4直向)</button>
                             </div>
                         </div>
                     </div>
@@ -735,7 +804,7 @@
 
 
 
-    <script src="app.js?v=20260709_1"></script>
+    <script src="app.js?v=20260713_2"></script>
 </body>
 
 </html>
