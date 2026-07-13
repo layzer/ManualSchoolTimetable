@@ -1889,11 +1889,12 @@ function renderCurriculumView() {
         const pInput = document.createElement("input");
         pInput.type = "number";
         pInput.className = "period-inline-input";
-        pInput.min = 1;
+        pInput.min = 0.1;
         pInput.max = 40;
+        pInput.step = "any";
         pInput.value = required;
         pInput.addEventListener("change", async () => {
-            const newVal = parseInt(pInput.value);
+            const newVal = parseFloat(pInput.value);
             if (newVal > 0) {
                 await handleCurriculumUpdateCourse(c.id, { required_periods: newVal });
             }
@@ -2004,7 +2005,7 @@ function setupCurriculumFormListener() {
         const courseName = currInputName.value.trim();
         const teacherId = parseInt(currSelectTeacher.value);
         const classroomName = currSelectClassroomName.value;
-        const requiredPeriods = parseInt(currInputPeriods.value) || 1;
+        const requiredPeriods = parseFloat(currInputPeriods.value) || 1;
 
         if (!classId || !courseName || !teacherId) {
             showToast("請填寫所有必要欄位！", "error");

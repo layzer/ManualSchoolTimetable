@@ -259,8 +259,8 @@
                         </div>
                         <div class="form-group">
                             <label>計劃節數（每週）：</label>
-                            <input type="number" id="curr-input-periods" class="custom-input" min="1" max="40" value="2"
-                                required>
+                            <input type="number" id="curr-input-periods" class="custom-input" min="0.1" max="40"
+                                step="any" value="2" required>
                         </div>
                         <button type="submit" class="btn btn-primary btn-block">
                             <i class="fa-solid fa-square-plus"></i> 新增科目
@@ -426,7 +426,7 @@
                     </div>
                 </div>
             </aside>
- 
+
             <section class="schedule-area glass-panel">
                 <div class="schedule-grid-header">
                     <div class="grid-title">
@@ -610,75 +610,6 @@
                                         <!-- JS will populate -->
                                     </tbody>
                                 </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Section 2: Import/Export System Data -->
-                <div class="course-management-section">
-                    <div class="management-title">
-                        <h3><i class="fa-solid fa-database"></i> 系統資料匯入/匯出</h3>
-                    </div>
-                    <div style="display: flex; gap: 16px; align-items: center;">
-                        <button id="btn-export-system" class="btn btn-primary">
-                            <i class="fa-solid fa-download"></i> 匯出系統備份 (JSON)
-                        </button>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <input type="file" id="input-import-system" accept=".json" style="display: none;">
-                            <button id="btn-import-system" class="btn btn-secondary"
-                                onclick="document.getElementById('input-import-system').click()">
-                                <i class="fa-solid fa-upload"></i> 匯入系統備份 (JSON)
-                            </button>
-                            <span style="font-size: 12px; color: var(--accent-pink);">⚠️ 匯入將覆蓋現有資料庫！</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 新增：CSV 資料匯入 -->
-                <div class="course-management-section">
-                    <div class="management-title">
-                        <h3><i class="fa-solid fa-file-import"></i> 系統資料匯入 (CSV)</h3>
-                    </div>
-
-                    <div class="management-grid">
-                        <div class="mgt-card">
-                            <h4>1. 匯入教師與不可排課</h4>
-                            <p class="helper-text">格式：教師姓名, 週一, 週二, 週三, 週四, 週五<br>(空堂以分號隔開，若教師不存在會自動建立)</p>
-                            <div style="margin-top: 10px;">
-                                <input type="file" id="input-import-teachers-csv" accept=".csv,.txt"
-                                    style="display:none;">
-                                <button class="btn btn-secondary btn-sm"
-                                    onclick="document.getElementById('input-import-teachers-csv').click()">
-                                    <i class="fa-solid fa-upload"></i> 上傳 CSV
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="mgt-card">
-                            <h4>2. 匯入專科教室</h4>
-                            <p class="helper-text">格式：教室名稱,
-                                類型(普通/自然/音樂/美勞/體育/圖書館)<br>（不需要容納人數，依類型對應班級教室/自然/音樂/美勞/體育/圖書館）</p>
-                            <div style="margin-top: 10px;">
-                                <input type="file" id="input-import-classrooms-csv" accept=".csv,.txt"
-                                    style="display:none;">
-                                <button class="btn btn-secondary btn-sm"
-                                    onclick="document.getElementById('input-import-classrooms-csv').click()">
-                                    <i class="fa-solid fa-upload"></i> 上傳 CSV
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="mgt-card">
-                            <h4>3. 匯入班級科目</h4>
-                            <p class="helper-text">格式：班級代號(名稱), 科目, 節數, 教師, 教室(可空白)</p>
-                            <div style="margin-top: 10px;">
-                                <input type="file" id="input-import-courses-csv" accept=".csv,.txt"
-                                    style="display:none;">
-                                <button class="btn btn-secondary btn-sm"
-                                    onclick="document.getElementById('input-import-courses-csv').click()">
-                                    <i class="fa-solid fa-upload"></i> 上傳 CSV
-                                </button>
                             </div>
                         </div>
                     </div>

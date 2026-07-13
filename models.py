@@ -1,5 +1,5 @@
 import json
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, Float
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -64,7 +64,7 @@ class Course(Base):
     class_id = Column(Integer, ForeignKey("classes.id"), nullable=True)  # 新增班級外鍵
     classroom_name = Column(String, default="班級教室")  # 預設上課需要的教室名稱
     week_type = Column(String, default="EVERY")  # EVERY, ODD (單週), EVEN (雙週)
-    required_periods = Column(Integer, default=1)  # 每週應排課節數（規劃節數）
+    required_periods = Column(Float, default=1.0)  # 每週應排課節數（規劃節數）
     paired_course_id = Column(Integer, ForeignKey("courses.id"), nullable=True)  # 單雙週配對課程的 ID
 
     # Relationships

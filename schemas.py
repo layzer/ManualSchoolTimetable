@@ -57,7 +57,7 @@ class CourseBase(BaseModel):
     class_id: Optional[int] = None
     classroom_name: str = "班級教室"
     week_type: str = "EVERY"  # EVERY, ODD, EVEN
-    required_periods: int = 1  # 每週應排課節數（規劃節數）
+    required_periods: float = 1.0  # 每週應排課節數（規劃節數）
     paired_course_id: Optional[int] = None
 
 class CourseCreate(CourseBase):
@@ -145,7 +145,7 @@ class TeacherWithSlotsImport(BaseModel):
 class CourseImportEntry(BaseModel):
     class_name: str
     subject: str
-    periods: int
+    periods: float
     teacher_name: str
     classroom_name: Optional[str] = None
     week_type: Optional[str] = "EVERY"
