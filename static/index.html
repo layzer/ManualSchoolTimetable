@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=device-width, initial-scale=1.0">
+    <title>國小單雙週排課系統 - 衝突偵測沙盒</title>
+    <!-- Google Fonts: Outfit & Noto Sans TC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=20260709_2">
+    <!-- html2pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+
+<body>
+    <div class="glass-bg-decor decor-1"></div>
+    <div class="glass-bg-decor decor-2"></div>
+
+    <div class="app-container">
+        <!-- Tab Navigation Menu & Class Selector -->
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 10px;">
+            <nav class="tab-navigation">
+                <button class="tab-btn active" data-tab="class-schedule-view">
+                    <i class="fa-solid fa-graduation-cap"></i> 班級課表排課
+                </button>
+                <button class="tab-btn" data-tab="class-curriculum-view">
+                    <i class="fa-solid fa-book-open"></i> 班級課程設定
+                </button>
+                <button class="tab-btn" data-tab="teacher-schedule-view">
+                    <i class="fa-solid fa-calendar-days"></i> 教師個人課表
+                </button>
+                <button class="tab-btn" data-tab="teacher-summary-view">
+                    <i class="fa-solid fa-users-gear"></i> 教師授課總表
+                </button>
+                <button class="tab-btn" data-tab="classroom-schedule-view">
+                    <i class="fa-solid fa-school"></i> 科任教室課表
+                </button>
+                <button class="tab-btn" data-tab="course-matrix-view">
+                    <i class="fa-solid fa-table-cells-large"></i> 課程總表
+                </button>
+                <button class="tab-btn" data-tab="system-settings-view">
+                    <i class="fa-solid fa-gear"></i> 系統設定
+                </button>
+            </nav>
+
+            <div class="view-selector">
+                <div class="vs-item" id="vs-class-group">
+                    <label for="select-class"><i class="fa-solid fa-graduation-cap"></i> 選擇班級：</label>
+                    <select id="select-class" class="custom-select">
+                        <option value="">請載入資料...</option>
+                    </select>
+                </div>
+                <div class="vs-item" id="vs-teacher-group" style="display:none;">
+                    <label for="select-teacher"><i class="fa-solid fa-user-tie"></i> 選擇教師：</label>
+                    <select id="select-teacher" class="custom-select">
+                        <option value="">-- 請選擇教師 --</option>
+                    </select>
+                </div>
+                <div class="vs-item" id="vs-curriculum-group" style="display:none;">
+                    <label for="curr-select-class"><i class="fa-solid fa-school"></i> 選擇班級：</label>
+                    <select id="curr-select-class" class="custom-select"></select>
+                </div>
+                <div class="vs-item" id="vs-classroom-group" style="display:none;">
+                    <label for="select-classroom-view"><i class="fa-solid fa-school"></i> 選擇科任教室：</label>
+                    <select id="select-classroom-view" class="custom-select">
+                        <option value="">-- 請選擇科任教室 --</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 1: Class Schedule View (Original Interface) -->
+        <main id="class-schedule-view" class="tab-content workspace">
+
+            <!-- Left Sidebar: Tools & Unscheduled Courses -->
+            <aside class="sidebar glass-panel">
+                <div class="sidebar-section">
+                    <h3><i class="fa-solid fa-circle-info"></i> 系統簡介</h3>
+                    <p class="intro-text">
+                        針對國小「導師包班課」與「專科科任課」設計，左側課程池已自動與班級連動。
+                    </p>
+                </div>
+
+                <!-- New: Select Week Type for Placing (Class) -->
+                <div class="sidebar-section">
+                    <h3><i class="fa-solid fa-calendar-week"></i> 選擇排課週別</h3>
+                    <p class="helper-text">設定此節排課的週次屬性：</p>
+                    <div class="week-type-selector" style="display: flex; gap: 8px;">
+                        <label class="custom-radio"
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <input type="radio" name="placing-week-type-class" value="EVERY" checked
+                                style="cursor: pointer;">
+                            <span style="font-size: 13px;">每週</span>
+                        </label>
+                        <label class="custom-radio"
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <input type="radio" name="placing-week-type-class" value="ODD" style="cursor: pointer;">
+                            <span style="font-size: 13px; color: var(--accent-cyan);">單週</span>
+                        </label>
+                        <label class="custom-radio"
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <input type="radio" name="placing-week-type-class" value="EVEN" style="cursor: pointer;">
+                            <span style="font-size: 13px; color: var(--accent-pink);">雙週</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="section-title-row">
+                        <h3><i class="fa-solid fa-list-check"></i> 待排課程</h3>
+                        <span class="badge" id="unscheduled-count">0</span>
+                    </div>
+                    <p class="helper-text">拖曳下方課程卡片至右側課表進行排課：</p>
+
+                    <div id="course-pool" class="course-pool">
+                        <!-- Courses will be loaded dynamically here -->
+                        <div class="empty-state">
+                            <i class="fa-solid fa-folder-open"></i>
+                            <p>請先點擊上方「初始化範例資料」按鈕</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Classroom Select for Dropping -->
+                <div class="sidebar-section">
+                    <h3><i class="fa-solid fa-school"></i> 安排授課教室</h3>
+                    <p class="helper-text">排課時，將使用下方選定的教室：</p>
+                    <select id="select-classroom" class="custom-select">
+                        <!-- Classrooms will load here -->
+                    </select>
+                </div>
+
+
+                <!-- Info Box / Conflict Toast Logger -->
+                <div class="sidebar-section message-box-section">
+                    <h3 style="display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> 即時狀態回報
+                        <button id="btn-refresh-class" title="重新取得課表資訊"
+                            style="margin-left: auto; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.4); color: var(--accent-blue); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px; transition: background 0.2s;"
+                            onmouseover="this.style.background='rgba(59,130,246,0.3)'"
+                            onmouseout="this.style.background='rgba(59,130,246,0.15)'">
+                            <i class="fa-solid fa-rotate-right"></i> 重新整理
+                        </button>
+                    </h3>
+                    <div id="status-logger" class="status-logger">
+                        <div class="log-entry system-msg">系統就緒。請選擇班級開始排課。</div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Right Area: The Calendar Grid -->
+            <section class="schedule-area glass-panel">
+                <div class="schedule-grid-header">
+                    <div class="grid-title">
+                        <span id="current-class-display">尚未選擇班級</span>
+                        <span class="grade-badge" id="class-grade-badge">N/A</span>
+                    </div>
+                    <div class="legend">
+                        <span class="legend-item"><span class="color-dot weekly"></span>已排定課程</span>
+                    </div>
+                </div>
+
+                <div class="grid-wrapper">
+                    <table class="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>節次</th>
+                                <th>週一</th>
+                                <th>週二</th>
+                                <th>週三</th>
+                                <th>週四</th>
+                                <th>週五</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedule-grid-body">
+                            <!-- JS will generate 8 periods -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Tab 2: Class Curriculum Setup View -->
+        <main id="class-curriculum-view" class="tab-content workspace hidden">
+            <section class="summary-area glass-panel full-width">
+                <div class="summary-header">
+                    <h2><i class="fa-solid fa-book-open"></i> 班級課程設定</h2>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">設定每個班級的課程科目、每週應排節數與任課教師。
+                    </p>
+                </div>
+
+                <!-- Stats row -->
+                <div class="curriculum-controls">
+                    <div class="curriculum-stats" id="curriculum-stats">
+                        <div class="curr-stat-chip">
+                            <span>科目種類</span>
+                            <strong id="curr-stat-subjects">0</strong>
+                        </div>
+                        <div class="curr-stat-chip">
+                            <span>計劃總節數</span>
+                            <strong id="curr-stat-total">0</strong>
+                        </div>
+                        <div class="curr-stat-chip accent">
+                            <span>尚未排滿節數</span>
+                            <strong id="curr-stat-remaining">0</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Curriculum table -->
+                <div class="table-container">
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th>科目名稱</th>
+                                <th>任課教師</th>
+                                <th>教室</th>
+                                <th>計劃節數 (每週)</th>
+                                <th>已排入課表</th>
+                                <th>尚需節數</th>
+                                <th>進度</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="curriculum-table-body">
+                            <!-- JS will populate -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Add subject form -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-plus"></i> 新增科目至此班級</h3>
+                    </div>
+                    <form id="form-curr-add-course" class="curriculum-add-form">
+                        <div class="form-group">
+                            <label>科目名稱：</label>
+                            <input type="text" id="curr-input-name" class="custom-input" placeholder="例如: 音樂" required>
+                        </div>
+                        <div class="form-group">
+                            <label>任課教師：</label>
+                            <select id="curr-select-teacher" class="custom-select" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>教室：</label>
+                            <select id="curr-select-classroom-name" class="custom-select">
+                                <!-- JS 會自動填入 -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>計劃節數（每週）：</label>
+                            <input type="number" id="curr-input-periods" class="custom-input" min="1" max="40" value="2"
+                                required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <i class="fa-solid fa-square-plus"></i> 新增科目
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </main>
+
+        <!-- Tab 3: Teacher Personal Schedule View -->
+        <main id="teacher-schedule-view" class="tab-content workspace hidden">
+            <aside class="sidebar glass-panel">
+                <div class="sidebar-section">
+                    <h3><i class="fa-solid fa-circle-info"></i> 功能簡介</h3>
+                    <p class="intro-text">
+                        檢視各教師的個人課表。點擊空白格子可以將其設為<strong>🚫 不可排課時段</strong>，再次點擊即可取消。
+                    </p>
+                </div>
+
+                <!-- Select Week Type for Placing (Teacher) -->
+                <div class="sidebar-section">
+                    <h3><i class="fa-solid fa-calendar-week"></i> 選擇排課週別</h3>
+                    <p class="helper-text">設定此節排課的週次屬性：</p>
+                    <div class="week-type-selector" style="display: flex; gap: 8px;">
+                        <label class="custom-radio"
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <input type="radio" name="placing-week-type-teacher" value="EVERY" checked
+                                style="cursor: pointer;">
+                            <span style="font-size: 13px;">每週</span>
+                        </label>
+                        <label class="custom-radio"
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <input type="radio" name="placing-week-type-teacher" value="ODD" style="cursor: pointer;">
+                            <span style="font-size: 13px; color: var(--accent-cyan);">單週</span>
+                        </label>
+                        <label class="custom-radio"
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <input type="radio" name="placing-week-type-teacher" value="EVEN" style="cursor: pointer;">
+                            <span style="font-size: 13px; color: var(--accent-pink);">雙週</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Classroom Select for Placing (Teacher) -->
+                <div class="sidebar-section" id="teacher-classroom-select-section" style="display: none;">
+                    <h3><i class="fa-solid fa-school"></i> 安排授課教室</h3>
+                    <p class="helper-text">排課時，將使用下方選定的教室：</p>
+                    <select id="teacher-select-classroom" class="custom-select">
+                        <!-- Classrooms will load here -->
+                    </select>
+                </div>
+
+                <!-- Teacher Course Pool Section -->
+                <div class="sidebar-section" id="teacher-course-pool-section"
+                    style="display: none; max-height: 350px; display: flex; flex-direction: column;">
+                    <h3><i class="fa-solid fa-book"></i> 授課科目 (點選以排課)</h3>
+                    <div id="teacher-course-pool" class="course-pool"
+                        style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-height: 250px; padding-right: 4px;">
+                        <!-- JS will populate -->
+                    </div>
+                </div>
+
+                <!-- Stats card -->
+                <div class="sidebar-section">
+                    <h3><i class="fa-solid fa-chart-simple"></i> 教師授課統計</h3>
+                    <div class="teacher-stats-card">
+                        <div class="stat-item">
+                            <span class="stat-label">已排定總節數</span>
+                            <span id="teacher-stat-periods" class="stat-value">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">教授年級數</span>
+                            <span id="teacher-stat-grades" class="stat-value">0</span>
+                        </div>
+                    </div>
+                </div>
+
+
+
+                <!-- Logger for feedback -->
+                <div class="sidebar-section message-box-section">
+                    <h3 style="display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-circle-check"></i> 操作反饋
+                        <button id="btn-refresh-teacher" title="重新取得課表資訊"
+                            style="margin-left: auto; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.4); color: var(--accent-blue); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px; transition: background 0.2s;"
+                            onmouseover="this.style.background='rgba(59,130,246,0.3)'"
+                            onmouseout="this.style.background='rgba(59,130,246,0.15)'">
+                            <i class="fa-solid fa-rotate-right"></i> 重新整理
+                        </button>
+                    </h3>
+                    <div id="teacher-status-logger" class="status-logger">
+                        <div class="log-entry system-msg">請選擇教師以進行設定。</div>
+                    </div>
+                </div>
+            </aside>
+
+            <section class="schedule-area glass-panel">
+                <div class="schedule-grid-header">
+                    <div class="grid-title">
+                        <span id="current-teacher-display">尚未選擇教師</span>
+                        <span class="grade-badge" id="teacher-tutor-badge" style="display:none;">導師</span>
+                    </div>
+                    <div class="legend">
+                        <span class="legend-item"><span class="color-dot weekly"></span>已排定課程</span>
+                        <span class="legend-item"><span class="color-dot unavailable-legend"></span>🚫 不可排課</span>
+                    </div>
+                </div>
+
+                <div class="grid-wrapper">
+                    <table class="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>節次</th>
+                                <th>週一</th>
+                                <th>週二</th>
+                                <th>週三</th>
+                                <th>週四</th>
+                                <th>週五</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teacher-grid-body">
+                            <!-- JS will generate 9 periods -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Tab 3.5: Classroom Schedule View -->
+        <main id="classroom-schedule-view" class="tab-content workspace hidden">
+            <aside class="sidebar glass-panel">
+                <div class="sidebar-section">
+                    <h3><i class="fa-solid fa-circle-info"></i> 功能簡介</h3>
+                    <p class="intro-text">
+                        檢視各科任教室（專科教室）的課程使用課表。
+                    </p>
+                </div>
+
+                <!-- Stats card -->
+                <div class="sidebar-section">
+                    <h3><i class="fa-solid fa-chart-simple"></i> 科任教室使用統計</h3>
+                    <div class="teacher-stats-card">
+                        <div class="stat-item">
+                            <span class="stat-label">已排定總節數</span>
+                            <span id="classroom-stat-periods" class="stat-value">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logger for feedback -->
+                <div class="sidebar-section message-box-section">
+                    <h3 style="display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-circle-check"></i> 操作反饋
+                        <button id="btn-refresh-classroom" title="重新取得課表資訊"
+                            style="margin-left: auto; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.4); color: var(--accent-blue); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 4px; transition: background 0.2s;"
+                            onmouseover="this.style.background='rgba(59,130,246,0.3)'"
+                            onmouseout="this.style.background='rgba(59,130,246,0.15)'">
+                            <i class="fa-solid fa-rotate-right"></i> 重新整理
+                        </button>
+                    </h3>
+                    <div id="classroom-status-logger" class="status-logger">
+                        <div class="log-entry system-msg">請選擇科任教室以檢視課表。</div>
+                    </div>
+                </div>
+            </aside>
+ 
+            <section class="schedule-area glass-panel">
+                <div class="schedule-grid-header">
+                    <div class="grid-title">
+                        <span id="current-classroom-display">尚未選擇科任教室</span>
+                        <span class="grade-badge" id="classroom-type-badge" style="display:none;">普通</span>
+                    </div>
+                    <div class="legend">
+                        <span class="legend-item"><span class="color-dot weekly"></span>已排定課程</span>
+                    </div>
+                </div>
+
+                <div class="grid-wrapper">
+                    <table class="schedule-table">
+                        <thead>
+                            <tr>
+                                <th>節次</th>
+                                <th>週一</th>
+                                <th>週二</th>
+                                <th>週三</th>
+                                <th>週四</th>
+                                <th>週五</th>
+                            </tr>
+                        </thead>
+                        <tbody id="classroom-grid-body">
+                            <!-- JS will generate 9 periods -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Tab 4: Teacher Summary & Course Mapping View -->
+        <main id="teacher-summary-view" class="tab-content workspace hidden">
+            <section class="summary-area glass-panel full-width">
+                <div class="summary-header">
+                    <h2><i class="fa-solid fa-users"></i> 教師授課與統計總表</h2>
+                </div>
+
+                <div class="table-container">
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th>教師姓名</th>
+                                <th>教授年級數</th>
+                                <th>授課總節數</th>
+                                <th>負責學科與班級</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teacher-summary-table-body">
+                            <!-- JS will populate -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Course Management Tools -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-sliders"></i> 班級課程與教師指派管理（變更教師授課班級）</h3>
+                    </div>
+
+                    <div class="management-grid">
+                        <!-- Add course form -->
+                        <div class="mgt-card add-course-card">
+                            <h4><i class="fa-solid fa-plus"></i> 新增班級授課學科</h4>
+                            <form id="form-add-course" class="custom-form">
+                                <div class="form-group">
+                                    <label>授課班級：</label>
+                                    <select id="mgt-select-class" class="custom-select" required></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>科目名稱：</label>
+                                    <input type="text" id="mgt-input-course-name" class="custom-input"
+                                        placeholder="例如: 英文" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>任課教師：</label>
+                                    <select id="mgt-select-teacher" class="custom-select" required></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>使用教室：</label>
+                                    <select id="mgt-select-classroom-name" class="custom-select">
+                                        <!-- JS 會自動填入 -->
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-block">
+                                    <i class="fa-solid fa-square-plus"></i> 新增授課配置
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Edit course list -->
+                        <div class="mgt-card edit-course-card">
+                            <h4><i class="fa-solid fa-pen-to-square"></i> 現有班級授課學科列表 (可直接變更教師或刪除科目)</h4>
+                            <div class="courses-list-wrapper">
+                                <table class="mini-table">
+                                    <thead>
+                                        <tr>
+                                            <th>班級</th>
+                                            <th>科目</th>
+                                            <th>任課教師 (下拉選單可即時修改)</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="mgt-courses-list-body">
+                                        <!-- JS will populate -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Tab 5: System Settings View -->
+        <main id="system-settings-view" class="tab-content workspace hidden">
+            <section class="summary-area glass-panel full-width">
+                <div class="summary-header">
+                    <h2><i class="fa-solid fa-gear"></i> 系統設定</h2>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">管理班級資料、匯入/匯出系統備份與下載課表。
+                    </p>
+                </div>
+
+                <!-- Section 1: Class Management -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-graduation-cap"></i> 班級設定</h3>
+                    </div>
+
+                    <div class="management-grid">
+                        <div class="mgt-card add-course-card">
+                            <h4><i class="fa-solid fa-plus"></i> 新增班級</h4>
+                            <form id="form-setting-add-class" class="custom-form">
+                                <div class="form-group">
+                                    <label>班級代號 (選填)：</label>
+                                    <input type="text" id="setting-input-class-code" class="custom-input"
+                                        placeholder="例如: 101">
+                                </div>
+                                <div class="form-group">
+                                    <label>班級名稱：</label>
+                                    <input type="text" id="setting-input-class-name" class="custom-input"
+                                        placeholder="例如: 一年甲班" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>所屬年級 (1-6)：</label>
+                                    <input type="number" id="setting-input-class-grade" class="custom-input" min="1"
+                                        max="6" value="1" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>班級導師：</label>
+                                    <select id="setting-select-class-tutor" class="custom-select">
+                                        <option value="">無導師</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>預設教室：</label>
+                                    <select id="setting-select-class-room" class="custom-select">
+                                        <option value="">無預設教室</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-block">
+                                    <i class="fa-solid fa-square-plus"></i> 新增班級
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="mgt-card edit-course-card">
+                            <h4><i class="fa-solid fa-list"></i> 現有班級列表</h4>
+                            <div class="courses-list-wrapper">
+                                <table class="mini-table">
+                                    <thead>
+                                        <tr>
+                                            <th>班級名稱</th>
+                                            <th>年級</th>
+                                            <th>導師</th>
+                                            <th>預設教室</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="setting-classes-list-body">
+                                        <!-- JS will populate -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Import/Export System Data -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-database"></i> 系統資料匯入/匯出</h3>
+                    </div>
+                    <div style="display: flex; gap: 16px; align-items: center;">
+                        <button id="btn-export-system" class="btn btn-primary">
+                            <i class="fa-solid fa-download"></i> 匯出系統備份 (JSON)
+                        </button>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="file" id="input-import-system" accept=".json" style="display: none;">
+                            <button id="btn-import-system" class="btn btn-secondary"
+                                onclick="document.getElementById('input-import-system').click()">
+                                <i class="fa-solid fa-upload"></i> 匯入系統備份 (JSON)
+                            </button>
+                            <span style="font-size: 12px; color: var(--accent-pink);">⚠️ 匯入將覆蓋現有資料庫！</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 新增：CSV 資料匯入 -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-file-import"></i> 系統資料匯入 (CSV)</h3>
+                    </div>
+
+                    <div class="management-grid">
+                        <div class="mgt-card">
+                            <h4>1. 匯入教師與不可排課</h4>
+                            <p class="helper-text">格式：教師姓名, 週一, 週二, 週三, 週四, 週五<br>(空堂以分號隔開，若教師不存在會自動建立)</p>
+                            <div style="margin-top: 10px;">
+                                <input type="file" id="input-import-teachers-csv" accept=".csv,.txt"
+                                    style="display:none;">
+                                <button class="btn btn-secondary btn-sm"
+                                    onclick="document.getElementById('input-import-teachers-csv').click()">
+                                    <i class="fa-solid fa-upload"></i> 上傳 CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mgt-card">
+                            <h4>2. 匯入專科教室</h4>
+                            <p class="helper-text">格式：教室名稱,
+                                類型(普通/自然/音樂/美勞/體育/圖書館)<br>（不需要容納人數，依類型對應班級教室/自然/音樂/美勞/體育/圖書館）</p>
+                            <div style="margin-top: 10px;">
+                                <input type="file" id="input-import-classrooms-csv" accept=".csv,.txt"
+                                    style="display:none;">
+                                <button class="btn btn-secondary btn-sm"
+                                    onclick="document.getElementById('input-import-classrooms-csv').click()">
+                                    <i class="fa-solid fa-upload"></i> 上傳 CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mgt-card">
+                            <h4>3. 匯入班級科目</h4>
+                            <p class="helper-text">格式：班級代號(名稱), 科目, 節數, 教師, 教室(可空白)</p>
+                            <div style="margin-top: 10px;">
+                                <input type="file" id="input-import-courses-csv" accept=".csv,.txt"
+                                    style="display:none;">
+                                <button class="btn btn-secondary btn-sm"
+                                    onclick="document.getElementById('input-import-courses-csv').click()">
+                                    <i class="fa-solid fa-upload"></i> 上傳 CSV
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 新增：設定檔編輯器 -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-code"></i> 班級與節次設定檔 (config.json)</h3>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <textarea id="setting-config-editor"
+                            style="width: 100%; height: 300px; font-family: monospace; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color);"></textarea>
+                        <div style="margin-top: 10px; text-align: right;">
+                            <button id="btn-save-config" class="btn btn-primary">
+                                <i class="fa-solid fa-save"></i> 儲存設定並重整
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Export CSV -->
+                <!-- Section 3: Export Timetables -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-file-export"></i> 匯出課表</h3>
+                    </div>
+                    <div class="management-grid">
+                        <div class="mgt-card">
+                            <h4><i class="fa-solid fa-school"></i> 班級與專科教室課表</h4>
+                            <div
+                                style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 100%;">
+                                <button id="btn-export-class-csv" class="btn btn-secondary" style="width: 100%;"><i
+                                        class="fa-solid fa-file-csv"></i> 匯出全部班級 CSV</button>
+                                <button id="btn-export-class-pdf" class="btn btn-primary" style="width: 100%;"><i
+                                        class="fa-solid fa-file-pdf"></i> 一鍵匯出全體班級與專科教室 PDF (A4直向)</button>
+                            </div>
+                        </div>
+                        <div class="mgt-card">
+                            <h4><i class="fa-solid fa-user-tie"></i> 教師個人課表</h4>
+                            <div
+                                style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px; width: 100%;">
+                                <button id="btn-export-teacher-csv" class="btn btn-secondary" style="width: 100%;"><i
+                                        class="fa-solid fa-file-csv"></i> 匯出全部教師 CSV</button>
+                                <button id="btn-export-teacher-pdf" class="btn btn-primary" style="width: 100%;"><i
+                                        class="fa-solid fa-file-pdf"></i> 一鍵匯出全體教師 PDF (A4直向)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Tab 6: 課程總表 (Course Matrix) -->
+        <main id="course-matrix-view" class="tab-content hidden">
+            <div class="course-matrix-container">
+                <!-- 左側：班級科目矩陣 -->
+                <div class="matrix-left glass-panel">
+                    <div class="matrix-header">
+                        <h3><i class="fa-solid fa-table-cells-large"></i> 班級科目對照表</h3>
+                        <span class="helper-text">點選右側教師後，再點擊下方儲存格即可指派授課教師</span>
+                    </div>
+                    <div class="matrix-table-wrap">
+                        <table class="matrix-table" id="course-matrix-table">
+                            <thead>
+                                <tr>
+                                    <th class="sticky-col">班級</th>
+                                    <th>國語</th>
+                                    <th>數學</th>
+                                    <th>英語</th>
+                                    <th>外師</th>
+                                    <th>自然</th>
+                                    <th>社會</th>
+                                    <th>閱作</th>
+                                    <th>寫字</th>
+                                    <th>體育</th>
+                                    <th>美勞</th>
+                                    <th>音樂</th>
+                                    <th>電腦</th>
+                                </tr>
+                            </thead>
+                            <tbody id="course-matrix-body">
+                                <!-- JS 動態產生 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- 右側：教師名單 -->
+                <div class="matrix-right glass-panel">
+                    <div class="matrix-header">
+                        <h3><i class="fa-solid fa-chalkboard-user"></i> 教師名單</h3>
+                        <span class="helper-text">點選教師後可批次指派至左側表格</span>
+                    </div>
+                    <div style="margin: 10px 0 10px 0;">
+                        <input type="text" id="matrix-teacher-search" placeholder="🔍 搜尋教師姓名..." class="custom-input"
+                            style="width: 100%; box-sizing: border-box;">
+                    </div>
+                    <div class="matrix-teacher-list" id="matrix-teacher-list">
+                        <!-- JS 動態產生 -->
+                    </div>
+                    <div class="matrix-selected-teacher" id="matrix-selected-info" style="display:none;">
+                        <i class="fa-solid fa-user-check"></i>
+                        <span id="matrix-selected-name">尚未選取</span>
+                        <button class="btn btn-secondary btn-sm" id="matrix-deselect-btn">取消選取</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Custom Context Menu -->
+    <div id="custom-context-menu" class="custom-context-menu hidden">
+        <ul>
+            <li id="menu-item-goto">
+                <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                <span>前往課表</span>
+            </li>
+        </ul>
+    </div>
+
+
+
+    <script src="app.js?v=20260709_1"></script>
+</body>
+
+</html>

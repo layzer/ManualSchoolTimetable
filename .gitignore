@@ -1,0 +1,27 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# AntiCrow ローカルデータ
+.anticrow/
+
+# 匯入格式資料夾
+/匯入格式/
+
+# SQLite databases
+*.db
+
+# Pytest cache
+.pytest_cache/
+
+# Agent and task logs
+.agent/
+.agents/
+TODO.md

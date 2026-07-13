@@ -1,0 +1,240 @@
+{
+  "periods": [
+    {
+      "id": "1",
+      "name": "第 1 節",
+      "type": "NORMAL",
+      "is_schedulable": true
+    },
+    {
+      "id": "2",
+      "name": "第 2 節",
+      "type": "NORMAL",
+      "is_schedulable": true
+    },
+    {
+      "id": "3",
+      "name": "第 3 節",
+      "type": "NORMAL",
+      "is_schedulable": true
+    },
+    {
+      "id": "4",
+      "name": "第 4 節",
+      "type": "NORMAL",
+      "is_schedulable": true
+    },
+    {
+      "id": "5",
+      "name": "第 5 節",
+      "type": "NORMAL",
+      "is_schedulable": true
+    },
+    {
+      "id": "nap",
+      "name": "午休",
+      "type": "NAP",
+      "is_schedulable": false
+    },
+    {
+      "id": "6",
+      "name": "第 6 節",
+      "type": "NORMAL",
+      "is_schedulable": true
+    },
+    {
+      "id": "7",
+      "name": "第 7 節",
+      "type": "NORMAL",
+      "is_schedulable": true
+    },
+    {
+      "id": "8",
+      "name": "第 8 節",
+      "type": "NORMAL",
+      "is_schedulable": true
+    }
+  ],
+  "classes": [
+    {
+      "code": 101,
+      "name": "一年忠班",
+      "grade": 1
+    },
+    {
+      "code": 102,
+      "name": "一年孝班",
+      "grade": 1
+    },
+    {
+      "code": 103,
+      "name": "一年仁班",
+      "grade": 1
+    },
+    {
+      "code": 104,
+      "name": "一年愛班",
+      "grade": 1
+    },
+    {
+      "code": 105,
+      "name": "一年信班",
+      "grade": 1
+    },
+    {
+      "code": 106,
+      "name": "一年義班",
+      "grade": 1
+    },
+    {
+      "code": 201,
+      "name": "二年忠班",
+      "grade": 2
+    },
+    {
+      "code": 202,
+      "name": "二年孝班",
+      "grade": 2
+    },
+    {
+      "code": 203,
+      "name": "二年仁班",
+      "grade": 2
+    },
+    {
+      "code": 204,
+      "name": "二年愛班",
+      "grade": 2
+    },
+    {
+      "code": 205,
+      "name": "二年信班",
+      "grade": 2
+    },
+    {
+      "code": 206,
+      "name": "二年義班",
+      "grade": 2
+    },
+    {
+      "code": 301,
+      "name": "三年忠班",
+      "grade": 3
+    },
+    {
+      "code": 302,
+      "name": "三年孝班",
+      "grade": 3
+    },
+    {
+      "code": 303,
+      "name": "三年仁班",
+      "grade": 3
+    },
+    {
+      "code": 304,
+      "name": "三年愛班",
+      "grade": 3
+    },
+    {
+      "code": 305,
+      "name": "三年信班",
+      "grade": 3
+    },
+    {
+      "code": 306,
+      "name": "三年義班",
+      "grade": 3
+    },
+    {
+      "code": 401,
+      "name": "四年忠班",
+      "grade": 4
+    },
+    {
+      "code": 402,
+      "name": "四年孝班",
+      "grade": 4
+    },
+    {
+      "code": 403,
+      "name": "四年仁班",
+      "grade": 4
+    },
+    {
+      "code": 404,
+      "name": "四年愛班",
+      "grade": 4
+    },
+    {
+      "code": 405,
+      "name": "四年信班",
+      "grade": 4
+    },
+    {
+      "code": 406,
+      "name": "四年義班",
+      "grade": 4
+    },
+    {
+      "code": 501,
+      "name": "五年忠班",
+      "grade": 5
+    },
+    {
+      "code": 502,
+      "name": "五年孝班",
+      "grade": 5
+    },
+    {
+      "code": 503,
+      "name": "五年仁班",
+      "grade": 5
+    },
+    {
+      "code": 504,
+      "name": "五年愛班",
+      "grade": 5
+    },
+    {
+      "code": 505,
+      "name": "五年信班",
+      "grade": 5
+    },
+    {
+      "code": 506,
+      "name": "五年義班",
+      "grade": 5
+    },
+    {
+      "code": 601,
+      "name": "六年忠班",
+      "grade": 6
+    },
+    {
+      "code": 602,
+      "name": "六年孝班",
+      "grade": 6
+    },
+    {
+      "code": 603,
+      "name": "六年仁班",
+      "grade": 6
+    },
+    {
+      "code": 604,
+      "name": "六年愛班",
+      "grade": 6
+    },
+    {
+      "code": 605,
+      "name": "六年信班",
+      "grade": 6
+    },
+    {
+      "code": 606,
+      "name": "六年義班",
+      "grade": 6
+    }
+  ]
+}
