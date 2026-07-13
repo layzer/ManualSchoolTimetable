@@ -2841,11 +2841,34 @@ function setupConfigEditor() {
 // ==================== Tab 6: 課程總表 (Course Matrix) =====================
 // =========================================================================
 
-// 科目欄位定義（與 HTML thead 順序一致）
-const MATRIX_SUBJECTS = ["國語", "數學", "英語", "外師", "自然", "社會", "閱作", "寫字", "體育", "美勞", "音樂", "電腦"];
+// 常見科目預設順序，未在列表中的排在後面
+const SUBJECT_ORDER = ["國語", "數學", "英語", "外師", "自然", "社會", "閱作", "寫字", "體育", "美勞", "音樂", "電腦"];
 
 // 當前選取的教師 ID（課程總表用）
 let matrixSelectedTeacherId = null;
+
+/**
+ * 動態獲取所有不重複的科目並排序
+ */
+function getDynamicSubjects() {
+    if (!courses) return [];
+    const subjectsSet = new Set(courses.map(c => c.name));
+    const subjects = Array.from(subjectsSet);
+    
+    subjects.sort((a, b) => {
+        let indexA = SUBJECT_ORDER.indexOf(a);
+        let indexB = SUBJECT_ORDER.indexOf(b);
+        if (indexA === -1) indexA = 999;
+        if (indexB === -1) indexB = 999;
+        
+        if (indexA !== indexB) {
+            return indexA - indexB;
+        }
+        return a.localeCompare(b, "zh-TW");
+    });
+    
+    return subjects;
+}
 
 /**
  * 渲染課程總表左側的班級×科目矩陣
@@ -2854,6 +2877,19 @@ function renderCourseMatrix() {
     const tbody = document.getElementById("course-matrix-body");
     if (!tbody) return;
     tbody.innerHTML = "";
+
+    const subjects = getDynamicSubjects();
+
+    // 動態渲染 Table Header (thead tr)
+    const theadTr = document.querySelector("#course-matrix-table thead tr");
+    if (theadTr) {
+        theadTr.innerHTML = '<th class="sticky-col">班級</th>';
+        subjects.forEach(subject => {
+            const th = document.createElement("th");
+            th.textContent = subject;
+            theadTr.appendChild(th);
+        });
+    }
 
     // 按年級→班級代碼排序
     const sortedClasses = [...classes].sort((a, b) => {
@@ -2871,7 +2907,7 @@ function renderCourseMatrix() {
         tr.appendChild(tdClass);
 
         // 每個科目一個儲存格
-        MATRIX_SUBJECTS.forEach(subject => {
+        subjects.forEach(subject => {
             const td = document.createElement("td");
             td.className = "matrix-cell";
             td.dataset.classId = cls.id;
