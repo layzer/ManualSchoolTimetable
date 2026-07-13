@@ -465,12 +465,20 @@ function populateSelectors() {
     if (teacherSelectClassroom) teacherSelectClassroom.innerHTML = "";
     if (selectClassroomView) selectClassroomView.innerHTML = '<option value="">-- 請選擇科任教室 --</option>';
     classrooms.forEach(cr => {
+        const isOtherNormalClassroom = (cr.type === "普通" || 
+                                        cr.type === "普通教室" || 
+                                        (cr.type && cr.type.includes("普通"))) && 
+                                       cr.name !== "班級教室";
+
         const opt = document.createElement("option");
         opt.value = cr.id;
         opt.textContent = `${cr.name} [${cr.type}]`;
-        selectClassroom.appendChild(opt.cloneNode(true));
-        if (teacherSelectClassroom) {
-            teacherSelectClassroom.appendChild(opt.cloneNode(true));
+
+        if (!isOtherNormalClassroom) {
+            selectClassroom.appendChild(opt.cloneNode(true));
+            if (teacherSelectClassroom) {
+                teacherSelectClassroom.appendChild(opt.cloneNode(true));
+            }
         }
         // 排除所有「普通」類型與名稱為「班級教室」的項目
         const isNormalClassroom = cr.name === "班級教室" || 
@@ -982,8 +990,19 @@ function autoSwitchClassroomForCourse(course, isTeacherView = false) {
     if (isDefaultClassroom) {
         const activeClassId = isTeacherView ? course.class_id : selectedClassId;
         const activeClass = classes.find(c => c.id === activeClassId);
+        
+        // 優先使用該班級設定的預設教室
         if (activeClass && activeClass.default_classroom_id) {
             selectEl.value = activeClass.default_classroom_id;
+            if (isTeacherView) teacherLog(`已自動切換授課場地至「班級教室」`);
+            else log(`已自動切換授課場地至「班級教室」`);
+            return;
+        }
+        
+        // 二次防呆：若班級沒有預設教室，直接尋找名為「班級教室」的通用教室
+        const genClassroom = classrooms.find(cr => cr.name === "班級教室");
+        if (genClassroom) {
+            selectEl.value = genClassroom.id;
             if (isTeacherView) teacherLog(`已自動切換授課場地至「班級教室」`);
             else log(`已自動切換授課場地至「班級教室」`);
             return;
@@ -1832,10 +1851,16 @@ function populateCurriculumSelectors() {
     if (currSelectClassroomName) {
         currSelectClassroomName.innerHTML = '';
         classrooms.forEach(cr => {
-            const opt = document.createElement("option");
-            opt.value = cr.name;
-            opt.textContent = cr.name;
-            currSelectClassroomName.appendChild(opt);
+            const isOtherNormalClassroom = (cr.type === "普通" || 
+                                            cr.type === "普通教室" || 
+                                            (cr.type && cr.type.includes("普通"))) && 
+                                           cr.name !== "班級教室";
+            if (!isOtherNormalClassroom) {
+                const opt = document.createElement("option");
+                opt.value = cr.name;
+                opt.textContent = cr.name;
+                currSelectClassroomName.appendChild(opt);
+            }
         });
         if (classrooms.some(cr => cr.name === "班級教室")) {
             currSelectClassroomName.value = "班級教室";

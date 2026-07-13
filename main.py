@@ -77,6 +77,25 @@ def create_classroom(classroom: schemas.ClassroomCreate, db: Session = Depends(g
 
 @app.get("/api/classrooms", response_model=List[schemas.Classroom])
 def get_classrooms(db: Session = Depends(get_db)):
+    # 防呆機制：確保資料庫中永遠存在一間名稱為「班級教室」、型態為「普通」的預設教室
+    default_cr = db.query(models.Classroom).filter(models.Classroom.name == "班級教室").first()
+    if not default_cr:
+        default_cr = models.Classroom(name="班級教室", type="普通")
+        db.add(default_cr)
+        db.commit()
+        db.refresh(default_cr)
+    
+    # 自動修復：確保所有班級的 default_classroom_id 都正確綁定到「班級教室」
+    classroom_ids = [r.id for r in db.query(models.Classroom.id).all()]
+    classes_to_fix = db.query(models.Class).filter(
+        (models.Class.default_classroom_id == None) | 
+        (~models.Class.default_classroom_id.in_(classroom_ids))
+    ).all()
+    if classes_to_fix:
+        for c in classes_to_fix:
+            c.default_classroom_id = default_cr.id
+        db.commit()
+
     return db.query(models.Classroom).all()
 
 # --- 基礎資料 API: Classes ---
@@ -90,6 +109,25 @@ def create_class(cls: schemas.ClassCreate, db: Session = Depends(get_db)):
 
 @app.get("/api/classes", response_model=List[schemas.Class])
 def get_classes(db: Session = Depends(get_db)):
+    # 確保「班級教室」存在
+    default_cr = db.query(models.Classroom).filter(models.Classroom.name == "班級教室").first()
+    if not default_cr:
+        default_cr = models.Classroom(name="班級教室", type="普通")
+        db.add(default_cr)
+        db.commit()
+        db.refresh(default_cr)
+        
+    # 自動修復：確保所有班級的 default_classroom_id 都正確綁定到「班級教室」
+    classroom_ids = [r.id for r in db.query(models.Classroom.id).all()]
+    classes_to_fix = db.query(models.Class).filter(
+        (models.Class.default_classroom_id == None) | 
+        (~models.Class.default_classroom_id.in_(classroom_ids))
+    ).all()
+    if classes_to_fix:
+        for c in classes_to_fix:
+            c.default_classroom_id = default_cr.id
+        db.commit()
+
     return db.query(models.Class).all()
 
 @app.put("/api/classes/{class_id}", response_model=schemas.Class)
@@ -746,6 +784,25 @@ def import_classrooms_csv(
         success_count += 1
 
     db.commit()
+
+    # 防呆機制：確保資料庫中永遠存在一間名稱為「班級教室」、型態為「普通」的預設教室，並自動修正所有班級的預設教室
+    default_cr = db.query(models.Classroom).filter(models.Classroom.name == "班級教室").first()
+    if not default_cr:
+        default_cr = models.Classroom(name="班級教室", type="普通")
+        db.add(default_cr)
+        db.commit()
+        db.refresh(default_cr)
+        
+    classroom_ids = [r.id for r in db.query(models.Classroom.id).all()]
+    classes_to_fix = db.query(models.Class).filter(
+        (models.Class.default_classroom_id == None) | 
+        (~models.Class.default_classroom_id.in_(classroom_ids))
+    ).all()
+    if classes_to_fix:
+        for c in classes_to_fix:
+            c.default_classroom_id = default_cr.id
+        db.commit()
+
     return schemas.GenericImportResult(success_count=success_count, failed_entries=failed_entries)
 
 
