@@ -472,14 +472,25 @@ function populateSelectors() {
         if (teacherSelectClassroom) {
             teacherSelectClassroom.appendChild(opt.cloneNode(true));
         }
-        if (selectClassroomView && cr.name !== "班級教室" && cr.type !== "普通") {
+        // 排除所有「普通」類型與名稱為「班級教室」的項目
+        const isNormalClassroom = cr.name === "班級教室" || 
+                                  cr.type === "普通" || 
+                                  cr.type === "普通教室" || 
+                                  (cr.type && cr.type.includes("普通"));
+        if (selectClassroomView && !isNormalClassroom) {
             selectClassroomView.appendChild(opt.cloneNode(true));
         }
     });
 
     // 預設選擇第一個科任教室
     if (selectClassroomView && !selectClassroomView.value) {
-        const nonNormalClassroom = classrooms.find(cr => cr.name !== "班級教室" && cr.type !== "普通");
+        const nonNormalClassroom = classrooms.find(cr => {
+            const isNormal = cr.name === "班級教室" || 
+                             cr.type === "普通" || 
+                             cr.type === "普通教室" || 
+                             (cr.type && cr.type.includes("普通"));
+            return !isNormal;
+        });
         if (nonNormalClassroom) {
             selectClassroomView.value = nonNormalClassroom.id;
         }
@@ -946,13 +957,20 @@ function showToast(msg, type = "info") {
 function autoSwitchClassroomForCourse(course, isTeacherView = false) {
     if (!course) return;
 
-    // 尋找名稱完全符合的教室
-    let targetRoom = classrooms.find(cr => cr.name === course.classroom_name);
     const selectEl = isTeacherView ? teacherSelectClassroom : selectClassroom;
     if (!selectEl) return;
 
-    // 如果是班級教室，則用目前班級的 default_classroom_id
-    if (course.classroom_name === "班級教室") {
+    // 尋找名稱完全符合的教室
+    let targetRoom = classrooms.find(cr => cr.name === course.classroom_name);
+
+    // 如果沒有在科目設定教室，或者教室名稱為「班級教室」、「普通」，或是找不到對應專科教室，預設都使用該班級的「班級教室」（default_classroom_id）
+    const isDefaultClassroom = !course.classroom_name || 
+                               course.classroom_name.trim() === "" || 
+                               course.classroom_name === "班級教室" || 
+                               course.classroom_name === "普通" ||
+                               !targetRoom;
+
+    if (isDefaultClassroom) {
         const activeClassId = isTeacherView ? course.class_id : selectedClassId;
         const activeClass = classes.find(c => c.id === activeClassId);
         if (activeClass && activeClass.default_classroom_id) {
