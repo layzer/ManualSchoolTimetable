@@ -21,6 +21,9 @@ wheels/
 # Pytest cache
 .pytest_cache/
 
+# Unit tests
+tests/
+
 # Agent and task logs
 .agent/
 .agents/

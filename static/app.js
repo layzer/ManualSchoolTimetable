@@ -465,10 +465,10 @@ function populateSelectors() {
     if (teacherSelectClassroom) teacherSelectClassroom.innerHTML = "";
     if (selectClassroomView) selectClassroomView.innerHTML = '<option value="">-- 請選擇科任教室 --</option>';
     classrooms.forEach(cr => {
-        const isOtherNormalClassroom = (cr.type === "普通" || 
-                                        cr.type === "普通教室" || 
-                                        (cr.type && cr.type.includes("普通"))) && 
-                                       cr.name !== "班級教室";
+        const isOtherNormalClassroom = (cr.type === "普通" ||
+            cr.type === "普通教室" ||
+            (cr.type && cr.type.includes("普通"))) &&
+            cr.name !== "班級教室";
 
         const opt = document.createElement("option");
         opt.value = cr.id;
@@ -481,10 +481,10 @@ function populateSelectors() {
             }
         }
         // 排除所有「普通」類型與名稱為「班級教室」的項目
-        const isNormalClassroom = cr.name === "班級教室" || 
-                                  cr.type === "普通" || 
-                                  cr.type === "普通教室" || 
-                                  (cr.type && cr.type.includes("普通"));
+        const isNormalClassroom = cr.name === "班級教室" ||
+            cr.type === "普通" ||
+            cr.type === "普通教室" ||
+            (cr.type && cr.type.includes("普通"));
         if (selectClassroomView && !isNormalClassroom) {
             selectClassroomView.appendChild(opt.cloneNode(true));
         }
@@ -493,10 +493,10 @@ function populateSelectors() {
     // 預設選擇第一個科任教室
     if (selectClassroomView && !selectClassroomView.value) {
         const nonNormalClassroom = classrooms.find(cr => {
-            const isNormal = cr.name === "班級教室" || 
-                             cr.type === "普通" || 
-                             cr.type === "普通教室" || 
-                             (cr.type && cr.type.includes("普通"));
+            const isNormal = cr.name === "班級教室" ||
+                cr.type === "普通" ||
+                cr.type === "普通教室" ||
+                (cr.type && cr.type.includes("普通"));
             return !isNormal;
         });
         if (nonNormalClassroom) {
@@ -723,19 +723,17 @@ async function renderSchedules() {
         });
 
         // 修正取消排課點擊失效 Bug：
-        // 1. 在 mousedown 階段阻止冒泡，這能防止父元素卡片啟動 HTML5 拖曳機制
-        div.querySelector(".btn-delete-placed").addEventListener("mousedown", (e) => {
+        // 在 mousedown 階段阻止冒泡並執行確認與刪除，這能防止父元素卡片啟動 HTML5 拖曳機制而吞噬點擊事件
+        div.querySelector(".btn-delete-placed").addEventListener("mousedown", async (e) => {
             e.stopPropagation();
+            e.preventDefault();
+            
+            // 阻止隨後的 cell 點擊事件觸發 Click-to-Place 排課
             ignoreNextClickCell = cell;
             setTimeout(() => {
                 if (ignoreNextClickCell === cell) ignoreNextClickCell = null;
             }, 300);
-        });
 
-        // 2. 在 click 階段執行確認與刪除，此處為同步的使用者觸發上下文，confirm 絕對不會被瀏覽器封鎖
-        div.querySelector(".btn-delete-placed").addEventListener("click", async (e) => {
-            e.stopPropagation();
-            e.preventDefault();
             if (confirm(`確定要取消「${course.name}」的排課嗎？`)) {
                 await deleteSchedule(s.id);
             }
@@ -981,16 +979,16 @@ function autoSwitchClassroomForCourse(course, isTeacherView = false) {
     let targetRoom = classrooms.find(cr => cr.name === course.classroom_name);
 
     // 如果沒有在科目設定教室，或者教室名稱為「班級教室」、「普通」，或是找不到對應專科教室，預設都使用該班級的「班級教室」（default_classroom_id）
-    const isDefaultClassroom = !course.classroom_name || 
-                               course.classroom_name.trim() === "" || 
-                               course.classroom_name === "班級教室" || 
-                               course.classroom_name === "普通" ||
-                               !targetRoom;
+    const isDefaultClassroom = !course.classroom_name ||
+        course.classroom_name.trim() === "" ||
+        course.classroom_name === "班級教室" ||
+        course.classroom_name === "普通" ||
+        !targetRoom;
 
     if (isDefaultClassroom) {
         const activeClassId = isTeacherView ? course.class_id : selectedClassId;
         const activeClass = classes.find(c => c.id === activeClassId);
-        
+
         // 優先使用該班級設定的預設教室
         if (activeClass && activeClass.default_classroom_id) {
             selectEl.value = activeClass.default_classroom_id;
@@ -998,7 +996,7 @@ function autoSwitchClassroomForCourse(course, isTeacherView = false) {
             else log(`已自動切換授課場地至「班級教室」`);
             return;
         }
-        
+
         // 二次防呆：若班級沒有預設教室，直接尋找名為「班級教室」的通用教室
         const genClassroom = classrooms.find(cr => cr.name === "班級教室");
         if (genClassroom) {
@@ -1250,19 +1248,17 @@ function renderTeacherSchedule() {
                 `;
 
                 // 修正取消排課點擊失效 Bug：
-                // 1. 在 mousedown 階段阻止冒泡，這能防止父元素卡片啟動 HTML5 拖曳機制
-                div.querySelector(".btn-delete-placed").addEventListener("mousedown", (e) => {
+                // 在 mousedown 階段阻止冒泡並執行確認與刪除，這能防止父元素卡片啟動 HTML5 拖曳機制而吞噬點擊事件
+                div.querySelector(".btn-delete-placed").addEventListener("mousedown", async (e) => {
                     e.stopPropagation();
+                    e.preventDefault();
+                    
+                    // 阻止隨後的 cell 點擊事件觸發 Click-to-Place 排課
                     ignoreNextClickCell = cell;
                     setTimeout(() => {
                         if (ignoreNextClickCell === cell) ignoreNextClickCell = null;
                     }, 300);
-                });
 
-                // 2. 在 click 階段執行確認與刪除，此處為同步的使用者觸發上下文，confirm 絕對不會被瀏覽器封鎖
-                div.querySelector(".btn-delete-placed").addEventListener("click", async (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
                     if (confirm(`確定要取消「${course.name}」的排課嗎？`)) {
                         await deleteSchedule(sched.id);
                     }
@@ -1560,11 +1556,12 @@ function renderTeacherSummary() {
         if (teacherCourses.length === 0) {
             tdCourses.innerHTML = '<span class="text-muted" style="font-size: 13px;">無指派科目</span>';
         } else {
-            // 排序課程
             teacherCourses.sort((a, b) => {
-                const clsA = classes.find(c => c.id === a.class_id)?.name || "";
-                const clsB = classes.find(c => c.id === b.class_id)?.name || "";
-                return clsA.localeCompare(clsB);
+                const idxA = classes.findIndex(c => c.id === a.class_id);
+                const idxB = classes.findIndex(c => c.id === b.class_id);
+                const valA = idxA === -1 ? 9999 : idxA;
+                const valB = idxB === -1 ? 9999 : idxB;
+                return valA - valB;
             }).forEach(c => {
                 const cls = classes.find(classObj => classObj.id === c.class_id);
                 const cScheduled = schedules
@@ -1630,9 +1627,11 @@ function renderMgtCoursesList() {
 
     // 依班級排序
     const sortedCourses = [...courses].sort((a, b) => {
-        const classA = classes.find(c => c.id === a.class_id)?.name || "";
-        const classB = classes.find(c => c.id === b.class_id)?.name || "";
-        return classA.localeCompare(classB);
+        const idxA = classes.findIndex(c => c.id === a.class_id);
+        const idxB = classes.findIndex(c => c.id === b.class_id);
+        const valA = idxA === -1 ? 9999 : idxA;
+        const valB = idxB === -1 ? 9999 : idxB;
+        return valA - valB;
     });
 
     if (sortedCourses.length === 0) {
@@ -1851,10 +1850,10 @@ function populateCurriculumSelectors() {
     if (currSelectClassroomName) {
         currSelectClassroomName.innerHTML = '';
         classrooms.forEach(cr => {
-            const isOtherNormalClassroom = (cr.type === "普通" || 
-                                            cr.type === "普通教室" || 
-                                            (cr.type && cr.type.includes("普通"))) && 
-                                           cr.name !== "班級教室";
+            const isOtherNormalClassroom = (cr.type === "普通" ||
+                cr.type === "普通教室" ||
+                (cr.type && cr.type.includes("普通"))) &&
+                cr.name !== "班級教室";
             if (!isOtherNormalClassroom) {
                 const opt = document.createElement("option");
                 opt.value = cr.name;
@@ -2322,14 +2321,25 @@ function exportAllClassesCsv() {
 
     let csvContent = "\uFEFF"; // BOM for Excel UTF-8
 
+    // 取得所有科目
+    const sortedSubjects = getDynamicSubjects();
+
+    // 取得可排課的節次
+    const schedulablePeriods = (systemConfig && systemConfig.periods && systemConfig.periods.length > 0)
+        ? systemConfig.periods.filter(p => p.is_schedulable).map(p => parseInt(p.id))
+        : [1, 2, 3, 4, 5, 6, 7, 8];
+
     // 檔頭
     const weekdays = ["一", "二", "三", "四", "五"];
-    const periods = [1, 2, 3, 4, 5, 6, 7, 8];
     let headers = ["班級名稱"];
     weekdays.forEach(w => {
-        periods.forEach(p => {
+        schedulablePeriods.forEach(p => {
             headers.push(`${w}${p}`);
         });
+    });
+    // 追加科目作為欄位標題
+    sortedSubjects.forEach(sub => {
+        headers.push(sub);
     });
     csvContent += headers.join(",") + "\n";
 
@@ -2337,7 +2347,7 @@ function exportAllClassesCsv() {
     classes.forEach(cls => {
         let row = [cls.name];
         for (let d = 1; d <= 5; d++) {
-            for (let p = 1; p <= 8; p++) {
+            for (const p of schedulablePeriods) {
                 // 找出此班級、此 weekday=d、此 period=p 的所有排課紀錄並排序，確保單週在雙週前
                 const scheds = schedules
                     .filter(s => s.class_id === cls.id && s.weekday === d && s.period === p)
@@ -2361,6 +2371,13 @@ function exportAllClassesCsv() {
                 row.push(`"${cellText}"`);
             }
         }
+        // 追加該班級的各科授課教師姓名
+        sortedSubjects.forEach(sub => {
+            const course = courses.find(c => c.class_id === cls.id && c.name === sub);
+            const teacher = course ? teachers.find(t => t.id === course.teacher_id) : null;
+            const teacherName = teacher ? teacher.name : "";
+            row.push(`"${teacherName}"`);
+        });
         csvContent += row.join(",") + "\n";
     });
 
@@ -2369,7 +2386,7 @@ function exportAllClassesCsv() {
     specialRooms.forEach(cr => {
         let row = [cr.name];
         for (let d = 1; d <= 5; d++) {
-            for (let p = 1; p <= 8; p++) {
+            for (const p of schedulablePeriods) {
                 // 找出此教室、此 weekday=d、此 period=p 的所有排課紀錄並排序，確保單週在雙週前
                 const scheds = schedules
                     .filter(s => s.classroom_id === cr.id && s.weekday === d && s.period === p)
@@ -2394,6 +2411,10 @@ function exportAllClassesCsv() {
                 row.push(`"${cellText}"`);
             }
         }
+        // 專科教室無科目與教師的固定綁定關係，後面補齊空白以維持對齊
+        sortedSubjects.forEach(() => {
+            row.push('""');
+        });
         csvContent += row.join(",") + "\n";
     });
 
@@ -2414,12 +2435,16 @@ function exportAllTeachersCsv() {
 
     let csvContent = "\uFEFF"; // BOM for Excel UTF-8
 
+    // 取得可排課的節次
+    const schedulablePeriods = (systemConfig && systemConfig.periods && systemConfig.periods.length > 0)
+        ? systemConfig.periods.filter(p => p.is_schedulable).map(p => parseInt(p.id))
+        : [1, 2, 3, 4, 5, 6, 7, 8];
+
     // 檔頭
     const weekdays = ["一", "二", "三", "四", "五"];
-    const periods = [1, 2, 3, 4, 5, 6, 7, 8];
     let headers = ["教師姓名"];
     weekdays.forEach(w => {
-        periods.forEach(p => {
+        schedulablePeriods.forEach(p => {
             headers.push(`${w}${p}`);
         });
     });
@@ -2429,7 +2454,7 @@ function exportAllTeachersCsv() {
     teachers.forEach(t => {
         let row = [t.name];
         for (let d = 1; d <= 5; d++) {
-            for (let p = 1; p <= 8; p++) {
+            for (const p of schedulablePeriods) {
                 // 檢查是否不可排課
                 const slotStr = `${d}-${p}`;
                 if (t.unavailable_slots && t.unavailable_slots.includes(slotStr)) {
@@ -2496,39 +2521,31 @@ function generateClassGridHtml(classId, className, subtitle) {
             <tbody>
     `;
 
-    const periodNames = {
-        "1": "第一節",
-        "2": "第二節",
-        "3": "第三節",
-        "4": "第四節",
-        "5": "第五節",
-        "6": "第六節",
-        "7": "第七節",
-        "8": "第八節"
-    };
+    const periods = (systemConfig && systemConfig.periods && systemConfig.periods.length > 0)
+        ? systemConfig.periods
+        : [
+            { id: "1", is_schedulable: true, name: "第一節" },
+            { id: "2", is_schedulable: true, name: "第二節" },
+            { id: "3", is_schedulable: true, name: "第三節" },
+            { id: "4", is_schedulable: true, name: "第四節" },
+            { id: "5", is_schedulable: true, name: "第五節" },
+            { id: "LUNCH", is_schedulable: false, name: "午休", type: "LUNCH" },
+            { id: "6", is_schedulable: true, name: "第六節" },
+            { id: "7", is_schedulable: true, name: "第七節" },
+            { id: "8", is_schedulable: true, name: "第八節" }
+        ];
 
-    const schedulePeriods = [
-        { id: "1", is_schedulable: true, name: "第一節" },
-        { id: "2", is_schedulable: true, name: "第二節" },
-        { id: "3", is_schedulable: true, name: "第三節" },
-        { id: "4", is_schedulable: true, name: "第四節" },
-        { id: "5", is_schedulable: true, name: "第五節" },
-        { id: "LUNCH", is_schedulable: false, name: "午休", type: "LUNCH" },
-        { id: "6", is_schedulable: true, name: "第六節" },
-        { id: "7", is_schedulable: true, name: "第七節" },
-        { id: "8", is_schedulable: true, name: "第八節" }
-    ];
-
-    schedulePeriods.forEach(p => {
+    periods.forEach(p => {
         if (!p.is_schedulable) {
+            const restText = p.type === "LUNCH" ? "☕ 午餐時間" : (p.type === "NAP" ? "💤 午休時間" : "休息時間");
             tableHtml += `
                 <tr class="rest-row">
                     <td>${p.name}</td>
-                    <td colspan="5">☕ 午餐與午休時間</td>
+                    <td colspan="5">${restText}</td>
                 </tr>
             `;
         } else {
-            tableHtml += `<tr><td>${periodNames[p.id]}</td>`;
+            tableHtml += `<tr><td>${p.name}</td>`;
             for (let d = 1; d <= 5; d++) {
                 const scheds = classSchedules
                     .filter(s => s.weekday === d && s.period === parseInt(p.id))
@@ -2537,7 +2554,7 @@ function generateClassGridHtml(classId, className, subtitle) {
                         if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
                         return 0;
                     });
-                tableHtml += `<td>`;
+                tableHtml += `<td><div class="pdf-cell-container">`;
                 scheds.forEach(s => {
                     const course = courses.find(c => c.id === s.course_id);
                     const teacher = course ? teachers.find(t => t.id === course.teacher_id) : null;
@@ -2546,9 +2563,10 @@ function generateClassGridHtml(classId, className, subtitle) {
                     if (course) {
                         const weekTag = s.week_type === "ODD" ? '<span class="week-tag inline">[單]</span> ' :
                             s.week_type === "EVEN" ? '<span class="week-tag inline">[雙]</span> ' : '';
+                        const weekClass = s.week_type === "EVERY" ? "every-week" : "alternate-week";
 
                         tableHtml += `
-                            <div class="placed-course">
+                            <div class="placed-course ${weekClass}">
                                 <div class="placed-name">${weekTag}${course.name}</div>
                                 <div class="placed-footer">
                                     <span>${teacher ? teacher.name.split(" ")[0] : ""}</span>
@@ -2558,7 +2576,7 @@ function generateClassGridHtml(classId, className, subtitle) {
                         `;
                     }
                 });
-                tableHtml += `</td>`;
+                tableHtml += `</div></td>`;
             }
             tableHtml += `</tr>`;
         }
@@ -2598,39 +2616,31 @@ function generateRoomGridHtml(classroomId, classroomName, subtitle) {
             <tbody>
     `;
 
-    const periodNames = {
-        "1": "第一節",
-        "2": "第二節",
-        "3": "第三節",
-        "4": "第四節",
-        "5": "第五節",
-        "6": "第六節",
-        "7": "第七節",
-        "8": "第八節"
-    };
+    const periods = (systemConfig && systemConfig.periods && systemConfig.periods.length > 0)
+        ? systemConfig.periods
+        : [
+            { id: "1", is_schedulable: true, name: "第一節" },
+            { id: "2", is_schedulable: true, name: "第二節" },
+            { id: "3", is_schedulable: true, name: "第三節" },
+            { id: "4", is_schedulable: true, name: "第四節" },
+            { id: "5", is_schedulable: true, name: "第五節" },
+            { id: "LUNCH", is_schedulable: false, name: "午休", type: "LUNCH" },
+            { id: "6", is_schedulable: true, name: "第六節" },
+            { id: "7", is_schedulable: true, name: "第七節" },
+            { id: "8", is_schedulable: true, name: "第八節" }
+        ];
 
-    const schedulePeriods = [
-        { id: "1", is_schedulable: true, name: "第一節" },
-        { id: "2", is_schedulable: true, name: "第二節" },
-        { id: "3", is_schedulable: true, name: "第三節" },
-        { id: "4", is_schedulable: true, name: "第四節" },
-        { id: "5", is_schedulable: true, name: "第五節" },
-        { id: "LUNCH", is_schedulable: false, name: "午休", type: "LUNCH" },
-        { id: "6", is_schedulable: true, name: "第六節" },
-        { id: "7", is_schedulable: true, name: "第七節" },
-        { id: "8", is_schedulable: true, name: "第八節" }
-    ];
-
-    schedulePeriods.forEach(p => {
+    periods.forEach(p => {
         if (!p.is_schedulable) {
+            const restText = p.type === "LUNCH" ? "☕ 午餐時間" : (p.type === "NAP" ? "💤 午休時間" : "休息時間");
             tableHtml += `
                 <tr class="rest-row">
                     <td>${p.name}</td>
-                    <td colspan="5">☕ 午餐與午休時間</td>
+                    <td colspan="5">${restText}</td>
                 </tr>
             `;
         } else {
-            tableHtml += `<tr><td>${periodNames[p.id]}</td>`;
+            tableHtml += `<tr><td>${p.name}</td>`;
             for (let d = 1; d <= 5; d++) {
                 const scheds = roomSchedules
                     .filter(s => s.weekday === d && s.period === parseInt(p.id))
@@ -2639,7 +2649,7 @@ function generateRoomGridHtml(classroomId, classroomName, subtitle) {
                         if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
                         return 0;
                     });
-                tableHtml += `<td>`;
+                tableHtml += `<td><div class="pdf-cell-container">`;
                 scheds.forEach(s => {
                     const course = courses.find(c => c.id === s.course_id);
                     const teacher = course ? teachers.find(t => t.id === course.teacher_id) : null;
@@ -2648,9 +2658,10 @@ function generateRoomGridHtml(classroomId, classroomName, subtitle) {
                     if (course) {
                         const weekTag = s.week_type === "ODD" ? '<span class="week-tag inline">[單]</span> ' :
                             s.week_type === "EVEN" ? '<span class="week-tag inline">[雙]</span> ' : '';
+                        const weekClass = s.week_type === "EVERY" ? "every-week" : "alternate-week";
 
                         tableHtml += `
-                            <div class="placed-course">
+                            <div class="placed-course ${weekClass}">
                                 <div class="placed-name">${weekTag}${course.name}</div>
                                 <div class="placed-footer">
                                     <span>${cls ? cls.name : ""}</span>
@@ -2660,7 +2671,7 @@ function generateRoomGridHtml(classroomId, classroomName, subtitle) {
                         `;
                     }
                 });
-                tableHtml += `</td>`;
+                tableHtml += `</div></td>`;
             }
             tableHtml += `</tr>`;
         }
@@ -2698,39 +2709,31 @@ function generateTeacherGridHtml(teacherId, teacherName, subtitle, teacherObj) {
             <tbody>
     `;
 
-    const periodNames = {
-        "1": "第一節",
-        "2": "第二節",
-        "3": "第三節",
-        "4": "第四節",
-        "5": "第五節",
-        "6": "第六節",
-        "7": "第七節",
-        "8": "第八節"
-    };
+    const periods = (systemConfig && systemConfig.periods && systemConfig.periods.length > 0)
+        ? systemConfig.periods
+        : [
+            { id: "1", is_schedulable: true, name: "第一節" },
+            { id: "2", is_schedulable: true, name: "第二節" },
+            { id: "3", is_schedulable: true, name: "第三節" },
+            { id: "4", is_schedulable: true, name: "第四節" },
+            { id: "5", is_schedulable: true, name: "第五節" },
+            { id: "LUNCH", is_schedulable: false, name: "午休", type: "LUNCH" },
+            { id: "6", is_schedulable: true, name: "第六節" },
+            { id: "7", is_schedulable: true, name: "第七節" },
+            { id: "8", is_schedulable: true, name: "第八節" }
+        ];
 
-    const schedulePeriods = [
-        { id: "1", is_schedulable: true, name: "第一節" },
-        { id: "2", is_schedulable: true, name: "第二節" },
-        { id: "3", is_schedulable: true, name: "第三節" },
-        { id: "4", is_schedulable: true, name: "第四節" },
-        { id: "5", is_schedulable: true, name: "第五節" },
-        { id: "LUNCH", is_schedulable: false, name: "午休", type: "LUNCH" },
-        { id: "6", is_schedulable: true, name: "第六節" },
-        { id: "7", is_schedulable: true, name: "第七節" },
-        { id: "8", is_schedulable: true, name: "第八節" }
-    ];
-
-    schedulePeriods.forEach(p => {
+    periods.forEach(p => {
         if (!p.is_schedulable) {
+            const restText = p.type === "LUNCH" ? "☕ 午餐時間" : (p.type === "NAP" ? "💤 午休時間" : "休息時間");
             tableHtml += `
                 <tr class="rest-row">
                     <td>${p.name}</td>
-                    <td colspan="5">☕ 午餐與午休時間</td>
+                    <td colspan="5">${restText}</td>
                 </tr>
             `;
         } else {
-            tableHtml += `<tr><td>${periodNames[p.id]}</td>`;
+            tableHtml += `<tr><td>${p.name}</td>`;
             for (let d = 1; d <= 5; d++) {
                 // 檢查是否不可排課
                 const slotKey = `${d}-${p.id}`;
@@ -2751,7 +2754,7 @@ function generateTeacherGridHtml(teacherId, teacherName, subtitle, teacherObj) {
                         return 0;
                     });
 
-                tableHtml += `<td>`;
+                tableHtml += `<td><div class="pdf-cell-container">`;
                 scheds.forEach(s => {
                     const course = courses.find(c => c.id === s.course_id);
                     const cls = classes.find(c => c.id === s.class_id);
@@ -2760,9 +2763,10 @@ function generateTeacherGridHtml(teacherId, teacherName, subtitle, teacherObj) {
                     if (course) {
                         const weekTag = s.week_type === "ODD" ? '<span class="week-tag inline">[單]</span> ' :
                             s.week_type === "EVEN" ? '<span class="week-tag inline">[雙]</span> ' : '';
+                        const weekClass = s.week_type === "EVERY" ? "every-week" : "alternate-week";
 
                         tableHtml += `
-                            <div class="placed-course">
+                            <div class="placed-course ${weekClass}">
                                 <div class="placed-name">${weekTag}${course.name}</div>
                                 <div class="placed-footer">
                                     <span>${cls ? cls.name : ""}</span>
@@ -2772,7 +2776,7 @@ function generateTeacherGridHtml(teacherId, teacherName, subtitle, teacherObj) {
                         `;
                     }
                 });
-                tableHtml += `</td>`;
+                tableHtml += `</div></td>`;
             }
             tableHtml += `</tr>`;
         }
@@ -2804,7 +2808,7 @@ async function exportAllClassesPdf() {
     classes.forEach(c => {
         const tutor = teachers.find(t => t.id === c.tutor_id)?.name || "無";
         const defaultRoom = classrooms.find(cr => cr.id === c.default_classroom_id)?.name || "班級教室";
-        const subtitle = `導師：${tutor} | 班級教室：${defaultRoom}`;
+        const subtitle = `導師：${tutor}`;
         wrapper.innerHTML += generateClassGridHtml(c.id, c.name, subtitle);
     });
 
@@ -2921,19 +2925,19 @@ function getDynamicSubjects() {
     if (!courses) return [];
     const subjectsSet = new Set(courses.map(c => c.name));
     const subjects = Array.from(subjectsSet);
-    
+
     subjects.sort((a, b) => {
         let indexA = SUBJECT_ORDER.indexOf(a);
         let indexB = SUBJECT_ORDER.indexOf(b);
         if (indexA === -1) indexA = 999;
         if (indexB === -1) indexB = 999;
-        
+
         if (indexA !== indexB) {
             return indexA - indexB;
         }
         return a.localeCompare(b, "zh-TW");
     });
-    
+
     return subjects;
 }
 
@@ -2958,11 +2962,8 @@ function renderCourseMatrix() {
         });
     }
 
-    // 按年級→班級代碼排序
-    const sortedClasses = [...classes].sort((a, b) => {
-        if (a.grade !== b.grade) return a.grade - b.grade;
-        return a.code.localeCompare(b.code, "zh-TW");
-    });
+    // 直接使用 classes 本身（已依據 config.json 的順序）
+    const sortedClasses = [...classes];
 
     sortedClasses.forEach(cls => {
         const tr = document.createElement("tr");
@@ -3465,19 +3466,17 @@ function renderClassroomSchedule() {
                 `;
 
                 // 修正取消排課點擊失效 Bug：
-                // 1. 在 mousedown 階段阻止冒泡，這能防止父元素卡片啟動 HTML5 拖曳機制
-                div.querySelector(".btn-delete-placed").addEventListener("mousedown", (e) => {
+                // 在 mousedown 階段阻止冒泡並執行確認與刪除，這能防止父元素卡片啟動 HTML5 拖曳機制而吞噬點擊事件
+                div.querySelector(".btn-delete-placed").addEventListener("mousedown", async (e) => {
                     e.stopPropagation();
+                    e.preventDefault();
+                    
+                    // 阻止隨後的 cell 點擊事件觸發 Click-to-Place 排課
                     ignoreNextClickCell = cell;
                     setTimeout(() => {
                         if (ignoreNextClickCell === cell) ignoreNextClickCell = null;
                     }, 300);
-                });
 
-                // 2. 在 click 階段執行確認與刪除，此處為同步的使用者觸發上下文，confirm 絕對不會被瀏覽器封鎖
-                div.querySelector(".btn-delete-placed").addEventListener("click", async (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
                     if (confirm(`確定要取消「${course ? course.name : ""}」的排課嗎？`)) {
                         await deleteSchedule(sched.id);
                         renderClassroomSchedule(); // 刪除後更新教室課表

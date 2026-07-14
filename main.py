@@ -28,6 +28,47 @@ def save_config(config: schemas.SystemConfig):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(config.model_dump(), f, ensure_ascii=False, indent=2)
 
+def sync_classes_in_db(config: schemas.SystemConfig, db: Session):
+    # Sync config classes to DB
+    for c in config.classes:
+        c_code = str(c.code) if c.code is not None else None
+        existing = db.query(models.Class).filter(models.Class.name == c.name).first()
+        if not existing:
+            new_class = models.Class(code=c_code, name=c.name, grade=c.grade)
+            db.add(new_class)
+        else:
+            existing.code = c_code
+            existing.grade = c.grade
+    db.commit()
+
+    # 同步刪除不在 config 中的班級，並清理其課表與課程
+    config_class_names = [c.name for c in config.classes]
+    classes_to_delete = db.query(models.Class).filter(~models.Class.name.in_(config_class_names)).all()
+    if classes_to_delete:
+        for c_del in classes_to_delete:
+            db.query(models.Schedule).filter(models.Schedule.class_id == c_del.id).delete()
+            db.query(models.Course).filter(models.Course.class_id == c_del.id).delete()
+            db.delete(c_del)
+        db.commit()
+
+def sync_class_tutors(db: Session):
+    """
+    自動同步班級導師：國小班級導師即為教國語的老師。
+    遍歷所有班級，找出該班級名為「國語」的課程，並將該課程的教師設為班級導師。
+    如果找不到該班級的「國語」課程，或該課程沒有指派教師，則班級導師設為 None。
+    """
+    classes = db.query(models.Class).all()
+    for c in classes:
+        mandarin_course = db.query(models.Course).filter(
+            models.Course.class_id == c.id,
+            models.Course.name == "國語"
+        ).first()
+        if mandarin_course and mandarin_course.teacher_id:
+            c.tutor_id = mandarin_course.teacher_id
+        else:
+            c.tutor_id = None
+    db.commit()
+
 @app.on_event("startup")
 def sync_classes_on_startup():
     config = load_config()
@@ -35,17 +76,8 @@ def sync_classes_on_startup():
     db_gen = get_db()
     db = next(db_gen)
     try:
-        # Sync config classes to DB
-        for c in config.classes:
-            c_code = str(c.code) if c.code is not None else None
-            existing = db.query(models.Class).filter(models.Class.name == c.name).first()
-            if not existing:
-                new_class = models.Class(code=c_code, name=c.name, grade=c.grade)
-                db.add(new_class)
-            else:
-                existing.code = c_code
-                existing.grade = c.grade
-        db.commit()
+        sync_classes_in_db(config, db)
+        sync_class_tutors(db)
     finally:
         db.close()
 
@@ -105,6 +137,7 @@ def create_class(cls: schemas.ClassCreate, db: Session = Depends(get_db)):
     db.add(db_class)
     db.commit()
     db.refresh(db_class)
+    sync_class_tutors(db)
     return db_class
 
 @app.get("/api/classes", response_model=List[schemas.Class])
@@ -128,7 +161,17 @@ def get_classes(db: Session = Depends(get_db)):
             c.default_classroom_id = default_cr.id
         db.commit()
 
-    return db.query(models.Class).all()
+    sync_class_tutors(db)
+    
+    db_classes = db.query(models.Class).all()
+    try:
+        config = load_config()
+        config_order = {c.name: idx for idx, c in enumerate(config.classes)}
+        db_classes = sorted(db_classes, key=lambda x: config_order.get(x.name, 9999))
+    except Exception as e:
+        print(f"Error sorting classes by config: {e}")
+        
+    return db_classes
 
 @app.put("/api/classes/{class_id}", response_model=schemas.Class)
 def update_class(class_id: int, cls: schemas.ClassCreate, db: Session = Depends(get_db)):
@@ -139,6 +182,7 @@ def update_class(class_id: int, cls: schemas.ClassCreate, db: Session = Depends(
         setattr(db_class, key, value)
     db.commit()
     db.refresh(db_class)
+    sync_class_tutors(db)
     return db_class
 
 @app.delete("/api/classes/{class_id}")
@@ -169,6 +213,7 @@ def create_course(course: schemas.CourseCreate, db: Session = Depends(get_db)):
             paired.paired_course_id = db_course.id
             db.commit()
             
+    sync_class_tutors(db)
     return db_course
 
 @app.get("/api/courses", response_model=List[schemas.Course])
@@ -184,6 +229,7 @@ def update_course(course_id: int, course: schemas.CourseCreate, db: Session = De
     for key, value in course.model_dump().items():
         setattr(db_course, key, value)
     db.commit()
+    sync_class_tutors(db)
     db.refresh(db_course)
     return db_course
 
@@ -211,6 +257,7 @@ def batch_upsert_courses(entries: List[schemas.CourseCreate], db: Session = Depe
             db.flush()
             results.append({"action": "created", "course_id": new_course.id})
     db.commit()
+    sync_class_tutors(db)
     return {"message": f"已處理 {len(results)} 筆課程", "results": results}
 
 @app.delete("/api/courses/{course_id}")
@@ -223,6 +270,7 @@ def delete_course(course_id: int, db: Session = Depends(get_db)):
     db.query(models.Schedule).filter(models.Schedule.course_id == course_id).delete()
     db.delete(db_course)
     db.commit()
+    sync_class_tutors(db)
     return {"message": "已成功刪除課程"}
 
 # --- 課表排定 API (Schedules) ---
@@ -635,6 +683,7 @@ def delete_course(course_id: int, db: Session = Depends(get_db)):
         
     db.delete(db_course)
     db.commit()
+    sync_class_tutors(db)
     return {"message": "已成功刪除課程"}
 
 # --- 設定檔 API ---
@@ -645,19 +694,8 @@ def get_system_config():
 @app.put("/api/config", response_model=schemas.SystemConfig)
 def update_system_config(config: schemas.SystemConfig, db: Session = Depends(get_db)):
     save_config(config)
-    
-    # 同步更新班級至 DB
-    for c in config.classes:
-        c_code = str(c.code) if c.code is not None else None
-        existing = db.query(models.Class).filter(models.Class.name == c.name).first()
-        if not existing:
-            new_class = models.Class(code=c_code, name=c.name, grade=c.grade)
-            db.add(new_class)
-        else:
-            existing.code = c_code
-            existing.grade = c.grade
-    db.commit()
-    
+    sync_classes_in_db(config, db)
+    sync_class_tutors(db)
     return config
 
 # --- 匯入合併與新增 CSV API ---
@@ -758,6 +796,7 @@ def import_courses_csv(
             failed_entries.append(f"錯誤 {entry.class_name} {entry.subject}: {str(e)}")
 
     db.commit()
+    sync_class_tutors(db)
     return schemas.GenericImportResult(success_count=success_count, failed_entries=failed_entries)
 
 @app.post("/api/classrooms/import-csv", response_model=schemas.GenericImportResult)

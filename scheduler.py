@@ -52,10 +52,7 @@ def check_conflict(
         if slot_key in target_teacher.unavailable_slots:
             conflicts.append(f"{target_teacher.name} 老師在此時段（週{weekday}第{period}節）設定為不排課時間")
 
-    # 3. 教室匹配偵測（僅在有指定教室時）
-    if target_classroom and target_course.classroom_name != "ANY":
-        if target_classroom.name != target_course.classroom_name:
-            conflicts.append(f"課程「{target_course.name}」需要「{target_course.classroom_name}」，但所選教室為「{target_classroom.name}」")
+    # 3. 教室匹配偵測：排課時授課教室不需要跟科目設定一樣，故此處不限制
 
     # 4. 檢索該時段（weekday, period）所有既存的排課紀錄
     query = db.query(models.Schedule).filter(

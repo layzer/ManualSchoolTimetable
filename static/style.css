@@ -1845,45 +1845,78 @@ body {
     color: #1e293b;
 }
 
-.pdf-page-body th,
-.pdf-page-body td {
+.pdf-page-body th {
     border: 1px solid #cbd5e1 !important;
     padding: 8px 4px !important;
     text-align: center;
     font-size: 13px;
-    background: #ffffff !important;
+    background: #f1f5f9 !important;
+    font-weight: 600;
 }
 
 .pdf-page-body td {
-    height: 72px;
+    border: 1px solid #cbd5e1 !important;
+    padding: 0 !important;
+    text-align: center;
+    font-size: 13px;
+    background: #ffffff !important;
+    height: 84px;
 }
 
-.pdf-page-body th {
-    background: #f1f5f9 !important;
-    font-weight: 600;
+.pdf-page-body .pdf-cell-container {
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    justify-content: flex-start;
+    align-items: stretch;
 }
 
 .pdf-page-body .placed-course {
     background: #eef2ff !important;
     border: 1px solid #c7d2fe !important;
     border-radius: 6px;
-    padding: 4px !important;
-    margin: 2px 0;
-    color: #1e293b !important;
+    box-sizing: border-box;
+    color: #000000 !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    overflow: hidden;
+}
+
+.pdf-page-body .placed-course.every-week {
+    height: 100%;
+    flex: 1 1 auto;
+    padding: 6px 4px !important;
+}
+
+.pdf-page-body .placed-course.alternate-week {
+    height: calc(50% - 2px);
+    flex: 0 0 calc(50% - 2px);
+    padding: 2px 4px !important;
 }
 
 .pdf-page-body .placed-name {
     font-weight: 600;
     font-size: 120%;
-    color: #1e293b;
+    color: #000000 !important;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .pdf-page-body .placed-footer {
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
-    color: #64748b;
-    margin-top: 2px;
+    font-size: 10px;
+    color: #475569 !important;
+    margin-top: 1px;
+    line-height: 1.1;
 }
 
 .pdf-page-body .rest-row {
@@ -1891,8 +1924,10 @@ body {
 }
 
 .pdf-page-body .rest-row td {
+    height: 36px;
     font-size: 11px;
     color: #94a3b8 !important;
+    padding: 8px 4px !important;
 }
 
 .pdf-page-body .unavailable-cell {
