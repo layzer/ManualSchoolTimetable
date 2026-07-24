@@ -2,7 +2,7 @@ import json
 import os
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import models
@@ -472,6 +472,126 @@ def export_system_data(db: Session = Depends(get_db)):
         courses=db.query(models.Course).all(),
         schedules=db.query(models.Schedule).all()
     )
+
+# --- 調代課專用 TSV 匯出 API ---
+
+WEEKDAY_NAMES = {1: "一", 2: "二", 3: "三", 4: "四", 5: "五"}
+
+@app.get("/api/export/teacher-schedule-tsv", response_class=PlainTextResponse)
+def export_teacher_schedule_tsv(db: Session = Depends(get_db)):
+    """
+    調代課教師課表匯出（Tab 分隔純文字）。
+    欄位：科目\t教師名稱\t一1課程\t一1班級\t一2課程\t一2班級\t...\t五8課程\t五8班級
+    每位教師一列，同一格若有多個排課（單雙週），以「/」合併顯示課程名稱，以「/」合併班級名稱。
+    """
+    teachers = db.query(models.Teacher).order_by(models.Teacher.id).all()
+    # 建立班級 id -> 名稱對照
+    classes_map = {c.id: c for c in db.query(models.Class).all()}
+
+    # 欄位標頭
+    header_parts = ["科目", "教師名稱"]
+    for wd in range(1, 6):
+        for pd in range(1, 9):
+            wd_name = WEEKDAY_NAMES[wd]
+            header_parts.append(f"{wd_name}{pd}課程")
+            header_parts.append(f"{wd_name}{pd}班級")
+    lines = ["\t".join(header_parts)]
+
+    for teacher in teachers:
+        # 取得此教師所有課程（含科目名稱）
+        # 每位教師的 courses: 多個科目，每個科目可能對應不同班級
+        # 以科目為單位，一個教師可能教多個科目（e.g. 國語、英語），分別輸出一列
+        # 依照科目名稱分組
+        courses = db.query(models.Course).filter(
+            models.Course.teacher_id == teacher.id
+        ).all()
+        if not courses:
+            continue
+
+        # 以科目分組
+        subject_set = {}
+        for c in courses:
+            if c.name not in subject_set:
+                subject_set[c.name] = []
+            subject_set[c.name].append(c)
+
+        for subject_name, subject_courses in sorted(subject_set.items()):
+            # 建立 (weekday, period) -> [(course_name, class_name)] 的對照
+            slot_map: dict[tuple, list] = {}
+            for course in subject_courses:
+                class_name = classes_map[course.class_id].name if course.class_id and course.class_id in classes_map else ""
+                for sched in course.schedules:
+                    key = (sched.weekday, sched.period)
+                    if key not in slot_map:
+                        slot_map[key] = []
+                    slot_map[key].append((course.name, class_name))
+
+            row = [subject_name, teacher.name]
+            for wd in range(1, 6):
+                for pd in range(1, 9):
+                    key = (wd, pd)
+                    entries = slot_map.get(key, [])
+                    if entries:
+                        course_names = "/".join(e[0] for e in entries)
+                        class_names = "/".join(e[1] for e in entries)
+                    else:
+                        course_names = ""
+                        class_names = ""
+                    row.append(course_names)
+                    row.append(class_names)
+            lines.append("\t".join(row))
+
+    content = "\n".join(lines)
+    return PlainTextResponse(content=content, media_type="text/plain; charset=utf-8",
+                             headers={"Content-Disposition": "attachment; filename*=UTF-8''teacher_schedule.txt"})
+
+
+@app.get("/api/export/course-database-tsv", response_class=PlainTextResponse)
+def export_course_database_tsv(db: Session = Depends(get_db)):
+    """
+    調代課課程資料庫匯出（Tab 分隔純文字）。
+    欄位：班級\t星期\t節次\t課程名稱\t教師名稱
+    教師名稱欄位格式：教師姓名&教室名稱（與範例格式相同）
+    """
+    schedules = db.query(models.Schedule).order_by(
+        models.Schedule.class_id,
+        models.Schedule.weekday,
+        models.Schedule.period
+    ).all()
+
+    classes_map = {c.id: c for c in db.query(models.Class).all()}
+    teachers_map = {t.id: t for t in db.query(models.Teacher).all()}
+    classrooms_map = {cr.id: cr for cr in db.query(models.Classroom).all()}
+
+    header = "班級\t星期\t節次\t課程名稱\t教師名稱"
+    lines = [header]
+
+    for sched in schedules:
+        cls = classes_map.get(sched.class_id)
+        class_name = cls.name if cls else str(sched.class_id)
+
+        course = sched.course
+        if not course:
+            continue
+        course_name = course.name
+
+        teacher = teachers_map.get(course.teacher_id) if course.teacher_id else None
+        teacher_name = teacher.name if teacher else ""
+
+        classroom = classrooms_map.get(sched.classroom_id) if sched.classroom_id else None
+        classroom_name = classroom.name if classroom else ""
+
+        # 教師名稱格式：教師姓名&教室名稱
+        teacher_field = f"{teacher_name}&{classroom_name}" if classroom_name else teacher_name
+
+        weekday_str = WEEKDAY_NAMES.get(sched.weekday, str(sched.weekday))
+        period_str = str(sched.period)
+
+        lines.append("\t".join([class_name, weekday_str, period_str, course_name, teacher_field]))
+
+    content = "\n".join(lines)
+    return PlainTextResponse(content=content, media_type="text/plain; charset=utf-8",
+                             headers={"Content-Disposition": "attachment; filename*=UTF-8''course_database.txt"})
 
 @app.post("/api/system/import")
 def import_system_data(data: schemas.SystemData, db: Session = Depends(get_db)):

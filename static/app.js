@@ -2235,9 +2235,56 @@ function setupSettingsListeners() {
             exportAllTeachersPdf();
         });
     }
+
+    // 8. 調代課教師課表 TSV 匯出
+    const btnExportTeacherScheduleTsv = document.getElementById("btn-export-teacher-schedule-tsv");
+    if (btnExportTeacherScheduleTsv) {
+        btnExportTeacherScheduleTsv.addEventListener("click", () => {
+            downloadTsv("/api/export/teacher-schedule-tsv", "teacher_schedule.txt");
+        });
+    }
+
+    // 9. 調代課課程資料庫 TSV 匯出
+    const btnExportCourseDatabaseTsv = document.getElementById("btn-export-course-database-tsv");
+    if (btnExportCourseDatabaseTsv) {
+        btnExportCourseDatabaseTsv.addEventListener("click", () => {
+            downloadTsv("/api/export/course-database-tsv", "course_database.txt");
+        });
+    }
+}
+
+/**
+ * 通用 TSV 下載輔助函式：呼叫後端 API，取得純文字內容後以 Blob 方式觸發瀏覽器下載。
+ * @param {string} url - API 路徑
+ * @param {string} filename - 下載後的檔案名稱
+ */
+async function downloadTsv(url, filename) {
+    try {
+        showToast("正在準備匯出檔案...", "info");
+        const res = await fetch(url);
+        if (!res.ok) {
+            const err = await res.text();
+            showToast(`匯出失敗：${err}`, "error");
+            return;
+        }
+        const text = await res.text();
+        const bom = "\uFEFF"; // UTF-8 BOM，確保 Excel / 調代課軟體正確讀取中文
+        const blob = new Blob([bom + text], { type: "text/plain;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+        showToast(`已下載：${filename}`, "success");
+    } catch (err) {
+        showToast(`匯出發生錯誤：${err.message}`, "error");
+    }
 }
 
 function renderSettingsUI() {
+
     // 填充導師選項
     if (settingSelectClassTutor) {
         settingSelectClassTutor.innerHTML = '<option value="">無導師</option>';

@@ -649,7 +649,35 @@
                     </div>
                 </div>
 
-                <!-- 新增：設定檔編輯器 -->
+                <!-- 調代課資料匯出 -->
+                <div class="course-management-section">
+                    <div class="management-title">
+                        <h3><i class="fa-solid fa-arrows-rotate"></i> 調代課資料匯出 (TSV 純文字)</h3>
+                    </div>
+                    <p class="helper-text" style="margin-bottom:12px;">匯出符合調代課系統格式的 Tab 分隔純文字檔案，可直接匯入調代課軟體使用。</p>
+                    <div class="management-grid">
+                        <div class="mgt-card">
+                            <h4><i class="fa-solid fa-chalkboard-user"></i> 調代課教師課表</h4>
+                            <p class="helper-text">以教師為單位，橫向展開週一～週五第 1～8 節的授課科目與班級，格式符合調代課系統欄位規格。</p>
+                            <div style="margin-top: 10px;">
+                                <button id="btn-export-teacher-schedule-tsv" class="btn btn-primary" style="width: 100%;">
+                                    <i class="fa-solid fa-file-lines"></i> 下載教師課表 (TSV)
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mgt-card">
+                            <h4><i class="fa-solid fa-database"></i> 調代課課程資料庫</h4>
+                            <p class="helper-text">列出全部排課紀錄，欄位：班級、星期、節次、課程名稱、教師名稱，格式符合調代課課程資料庫規格。</p>
+                            <div style="margin-top: 10px;">
+                                <button id="btn-export-course-database-tsv" class="btn btn-primary" style="width: 100%;">
+                                    <i class="fa-solid fa-file-lines"></i> 下載課程資料庫 (TSV)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
                 <div class="course-management-section">
                     <div class="management-title">
                         <h3><i class="fa-solid fa-code"></i> 班級與節次設定檔 (config.json)</h3>
@@ -804,7 +832,7 @@
 
 
 
-    <script src="app.js?v=20260713_4"></script>
+    <script src="app.js?v=20260715_1"></script>
 </body>
 
 </html>
