@@ -5,8 +5,8 @@
 有自動排課需求，請使用[FET](https://lalescu.ro/liviu/fet/)。
 
 *   **快速入門**：關於詳細的安裝與啟動步驟（從安裝 Python 與 `uv` 開始），請參閱 [安裝與啟動指引 (INSTALL.md)](./INSTALL.md)。
-
-![License](./ragelicense.png)
+*   
+<img width="2560" height="1866" alt="圖片" src="https://github.com/user-attachments/assets/cbdedeb9-d307-4429-ac4b-9f2d98e0185a" />
 
 ---
 
