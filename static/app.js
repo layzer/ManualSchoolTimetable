@@ -1559,7 +1559,7 @@ function setupCSVImports() {
 }
 
 async function processCSVImport(text, type) {
-    const clean = text.replace(/^﻿/, "");
+    const clean = text.replace(/^[\uFEFF\uFFFE]/, "");
     const lines = clean.split(/\r?\n/).filter(l => l.trim() && !l.trim().startsWith("#"));
     if (lines.length === 0) {
         showToast("CSV 檔案沒有有效資料！", "error");
@@ -2584,7 +2584,7 @@ function exportTeacherScheduleTsv() {
         });
     });
 
-    const tsvContent = "\uFEFF" + lines.join("\n");
+    const tsvContent = lines.join("\n");
     const blob = new Blob([tsvContent], { type: 'text/plain;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -2631,7 +2631,7 @@ function exportCourseDatabaseTsv() {
         lines.push([className, weekdayStr, periodStr, courseName, teacherField].join("\t"));
     });
 
-    const tsvContent = "\uFEFF" + lines.join("\n");
+    const tsvContent = lines.join("\n");
     const blob = new Blob([tsvContent], { type: 'text/plain;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
