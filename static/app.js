@@ -91,6 +91,8 @@ const settingExportClass = document.getElementById("setting-export-class");
 const settingExportTeacher = document.getElementById("setting-export-teacher");
 const btnExportClassCsv = document.getElementById("btn-export-class-csv");
 const btnExportTeacherCsv = document.getElementById("btn-export-teacher-csv");
+const btnExportClassPdf = document.getElementById("btn-export-class-pdf");
+const btnExportTeacherPdf = document.getElementById("btn-export-teacher-pdf");
 
 
 // --- localForage 配置與 Store Helper ---
@@ -2272,6 +2274,20 @@ function setupSettingsListeners() {
             exportAllTeachersCsv();
         });
     }
+
+    // 6. 匯出全體班級與專科教室 PDF
+    if (btnExportClassPdf) {
+        btnExportClassPdf.addEventListener("click", () => {
+            exportAllClassesPdf();
+        });
+    }
+
+    // 7. 匯出全體教師 PDF
+    if (btnExportTeacherPdf) {
+        btnExportTeacherPdf.addEventListener("click", () => {
+            exportAllTeachersPdf();
+        });
+    }
 }
 
 // --- 取得動態科目 ---
@@ -2438,24 +2454,31 @@ function generateClassGridHtml(classId, className, subtitle) {
                         if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
                         return 0;
                     });
-                let cellHtml = "";
-                scheds.forEach(s => {
-                    const course = courses.find(c => c.id === s.course_id);
-                    const teacher = course ? teachers.find(t => t.id === course.teacher_id) : null;
-                    const classroom = classrooms.find(cr => cr.id === s.classroom_id);
-                    if (course) {
-                        const weekTag = s.week_type === "ODD" ? '<span class="pdf-week-tag">[單]</span> ' :
-                            s.week_type === "EVEN" ? '<span class="pdf-week-tag">[雙]</span> ' : '';
-                        const roomText = classroom && classroom.name !== "班級教室" ? ` (${classroom.name})` : '';
-                        cellHtml += `
-                            <div class="pdf-placed-item week-${(s.week_type || 'EVERY').toLowerCase()}">
-                                <div class="pdf-course-name">${weekTag}${course.name}${roomText}</div>
-                                <div class="pdf-teacher-name">${teacher ? teacher.name : ''}</div>
-                            </div>
-                        `;
-                    }
-                });
-                tableHtml += `<td>${cellHtml}</td>`;
+                let cellContent = "";
+                if (scheds.length > 0) {
+                    let itemsHtml = "";
+                    scheds.forEach(s => {
+                        const course = courses.find(c => c.id === s.course_id);
+                        const teacher = course ? teachers.find(t => t.id === course.teacher_id) : null;
+                        const classroom = classrooms.find(cr => cr.id === s.classroom_id);
+                        if (course) {
+                            const weekTag = s.week_type === "ODD" ? '[單] ' : s.week_type === "EVEN" ? '[雙] ' : '';
+                            const roomText = classroom && classroom.name !== "班級教室" ? ` (${classroom.name})` : '';
+                            const weekClass = (s.week_type === "ODD" || s.week_type === "EVEN") ? 'alternate-week' : 'every-week';
+                            itemsHtml += `
+                                <div class="placed-course ${weekClass}">
+                                    <div class="placed-name">${weekTag}${course.name}${roomText}</div>
+                                    <div class="placed-footer">
+                                        <span>${className}</span>
+                                        <span>${teacher ? teacher.name : ''}</span>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                    cellContent = `<div class="pdf-cell-container">${itemsHtml}</div>`;
+                }
+                tableHtml += `<td>${cellContent}</td>`;
             }
             tableHtml += `</tr>`;
         }
@@ -2464,12 +2487,217 @@ function generateClassGridHtml(classId, className, subtitle) {
     tableHtml += `</tbody></table>`;
 
     return `
-        <div class="pdf-page-container">
-            <div class="pdf-header">
-                <div class="pdf-title">${className} 課表</div>
-                <div class="pdf-subtitle">${subtitle}</div>
+        <div class="pdf-page">
+            <div class="pdf-page-header">
+                <h1>${className} 課表</h1>
+                <p>${subtitle}</p>
             </div>
-            ${tableHtml}
+            <div class="pdf-page-body">
+                ${tableHtml}
+            </div>
+        </div>
+    `;
+}
+
+// --- PDF 匯出輔助函式：動態生成專科教室課表網格 HTML ---
+function generateRoomGridHtml(roomId, roomName, subtitle) {
+    let tableHtml = `
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 15%;">節次/時間</th>
+                    <th style="width: 17%;">週一</th>
+                    <th style="width: 17%;">週二</th>
+                    <th style="width: 17%;">週三</th>
+                    <th style="width: 17%;">週四</th>
+                    <th style="width: 17%;">週五</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    const periods = (systemConfig && systemConfig.periods && systemConfig.periods.length > 0)
+        ? systemConfig.periods
+        : [
+            { id: "1", is_schedulable: true, name: "第一節" },
+            { id: "2", is_schedulable: true, name: "第二節" },
+            { id: "3", is_schedulable: true, name: "第三節" },
+            { id: "4", is_schedulable: true, name: "第四節" },
+            { id: "5", is_schedulable: true, name: "第五節" },
+            { id: "LUNCH", is_schedulable: false, name: "午休", type: "LUNCH" },
+            { id: "6", is_schedulable: true, name: "第六節" },
+            { id: "7", is_schedulable: true, name: "第七節" },
+            { id: "8", is_schedulable: true, name: "第八節" }
+        ];
+
+    periods.forEach(p => {
+        if (!p.is_schedulable) {
+            const restText = p.type === "LUNCH" ? "☕ 午餐時間" : (p.type === "NAP" ? "💤 午休時間" : "休息時間");
+            tableHtml += `
+                <tr class="rest-row">
+                    <td>${p.name}</td>
+                    <td colspan="5">${restText}</td>
+                </tr>
+            `;
+        } else {
+            tableHtml += `<tr><td>${p.name}</td>`;
+            for (let d = 1; d <= 5; d++) {
+                const scheds = schedules
+                    .filter(s => s.classroom_id === roomId && s.weekday === d && s.period === parseInt(p.id))
+                    .sort((a, b) => {
+                        if (a.week_type === "ODD" && b.week_type === "EVEN") return -1;
+                        if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
+                        return 0;
+                    });
+
+                let cellContent = "";
+                if (scheds.length > 0) {
+                    let itemsHtml = "";
+                    scheds.forEach(s => {
+                        const course = courses.find(c => c.id === s.course_id);
+                        const cls = classes.find(c => c.id === s.class_id);
+                        const teacher = course ? teachers.find(t => t.id === course.teacher_id) : null;
+                        if (course) {
+                            const weekTag = s.week_type === "ODD" ? '[單] ' : s.week_type === "EVEN" ? '[雙] ' : '';
+                            const weekClass = (s.week_type === "ODD" || s.week_type === "EVEN") ? 'alternate-week' : 'every-week';
+                            itemsHtml += `
+                                <div class="placed-course ${weekClass}">
+                                    <div class="placed-name">${weekTag}${course.name}</div>
+                                    <div class="placed-footer">
+                                        <span>${cls ? cls.name : ''}</span>
+                                        <span>${teacher ? teacher.name : ''}</span>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+                    cellContent = `<div class="pdf-cell-container">${itemsHtml}</div>`;
+                }
+                tableHtml += `<td>${cellContent}</td>`;
+            }
+            tableHtml += `</tr>`;
+        }
+    });
+
+    tableHtml += `</tbody></table>`;
+
+    return `
+        <div class="pdf-page">
+            <div class="pdf-page-header">
+                <h1>${roomName} 課表</h1>
+                <p>${subtitle}</p>
+            </div>
+            <div class="pdf-page-body">
+                ${tableHtml}
+            </div>
+        </div>
+    `;
+}
+
+// --- PDF 匯出輔助函式：動態生成教師課表網格 HTML ---
+function generateTeacherGridHtml(teacherId, teacherName, subtitle, teacherObj) {
+    const teacherCourses = courses.filter(c => c.teacher_id === teacherId);
+    const teacherCourseIds = teacherCourses.map(c => c.id);
+    const teacherSchedules = schedules.filter(s => teacherCourseIds.includes(s.course_id));
+    const unavailableSlots = (teacherObj && teacherObj.unavailable_slots) || [];
+
+    let tableHtml = `
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 15%;">節次/時間</th>
+                    <th style="width: 17%;">週一</th>
+                    <th style="width: 17%;">週二</th>
+                    <th style="width: 17%;">週三</th>
+                    <th style="width: 17%;">週四</th>
+                    <th style="width: 17%;">週五</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    const periods = (systemConfig && systemConfig.periods && systemConfig.periods.length > 0)
+        ? systemConfig.periods
+        : [
+            { id: "1", is_schedulable: true, name: "第一節" },
+            { id: "2", is_schedulable: true, name: "第二節" },
+            { id: "3", is_schedulable: true, name: "第三節" },
+            { id: "4", is_schedulable: true, name: "第四節" },
+            { id: "5", is_schedulable: true, name: "第五節" },
+            { id: "LUNCH", is_schedulable: false, name: "午休", type: "LUNCH" },
+            { id: "6", is_schedulable: true, name: "第六節" },
+            { id: "7", is_schedulable: true, name: "第七節" },
+            { id: "8", is_schedulable: true, name: "第八節" }
+        ];
+
+    periods.forEach(p => {
+        if (!p.is_schedulable) {
+            const restText = p.type === "LUNCH" ? "☕ 午餐時間" : (p.type === "NAP" ? "💤 午休時間" : "休息時間");
+            tableHtml += `
+                <tr class="rest-row">
+                    <td>${p.name}</td>
+                    <td colspan="5">${restText}</td>
+                </tr>
+            `;
+        } else {
+            tableHtml += `<tr><td>${p.name}</td>`;
+            for (let d = 1; d <= 5; d++) {
+                const slotKey = `${d}-${p.id}`;
+                const isUnavailable = unavailableSlots.includes(slotKey);
+
+                if (isUnavailable) {
+                    tableHtml += `<td class="unavailable-cell">不排課</td>`;
+                } else {
+                    const scheds = teacherSchedules
+                        .filter(s => s.weekday === d && s.period === parseInt(p.id))
+                        .sort((a, b) => {
+                            if (a.week_type === "ODD" && b.week_type === "EVEN") return -1;
+                            if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
+                            return 0;
+                        });
+
+                    let cellContent = "";
+                    if (scheds.length > 0) {
+                        let itemsHtml = "";
+                        scheds.forEach(s => {
+                            const course = courses.find(c => c.id === s.course_id);
+                            const cls = classes.find(c => c.id === s.class_id);
+                            const classroom = classrooms.find(cr => cr.id === s.classroom_id);
+                            if (course) {
+                                const weekTag = s.week_type === "ODD" ? '[單] ' : s.week_type === "EVEN" ? '[雙] ' : '';
+                                const roomText = classroom && classroom.name !== "班級教室" ? ` (${classroom.name})` : '';
+                                const weekClass = (s.week_type === "ODD" || s.week_type === "EVEN") ? 'alternate-week' : 'every-week';
+                                itemsHtml += `
+                                    <div class="placed-course ${weekClass}">
+                                        <div class="placed-name">${weekTag}${course.name}${roomText}</div>
+                                        <div class="placed-footer">
+                                            <span>${cls ? cls.name : ''}</span>
+                                            <span>${teacherName}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        });
+                        cellContent = `<div class="pdf-cell-container">${itemsHtml}</div>`;
+                    }
+                    tableHtml += `<td>${cellContent}</td>`;
+                }
+            }
+            tableHtml += `</tr>`;
+        }
+    });
+
+    tableHtml += `</tbody></table>`;
+
+    return `
+        <div class="pdf-page">
+            <div class="pdf-page-header">
+                <h1>${teacherName} 老師個人課表</h1>
+                <p>${subtitle}</p>
+            </div>
+            <div class="pdf-page-body">
+                ${tableHtml}
+            </div>
         </div>
     `;
 }
