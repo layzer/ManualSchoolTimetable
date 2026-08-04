@@ -619,41 +619,35 @@ function populateSelectors() {
     selectClassroom.innerHTML = "";
     if (teacherSelectClassroom) teacherSelectClassroom.innerHTML = "";
     if (selectClassroomView) selectClassroomView.innerHTML = '<option value="">-- 請選擇科任教室 --</option>';
-    classrooms.forEach(cr => {
-        const isOtherNormalClassroom = (cr.type === "普通" ||
-            cr.type === "普通教室" ||
-            (cr.type && cr.type.includes("普通"))) &&
-            cr.name !== "班級教室";
+    if (mgtSelectClassroomName) mgtSelectClassroomName.innerHTML = '<option value="班級教室">班級教室 (預設)</option>';
 
+    classrooms.forEach(cr => {
         const opt = document.createElement("option");
         opt.value = cr.id;
         opt.textContent = `${cr.name} [${cr.type}]`;
 
-        if (!isOtherNormalClassroom) {
-            selectClassroom.appendChild(opt.cloneNode(true));
-            if (teacherSelectClassroom) {
-                teacherSelectClassroom.appendChild(opt.cloneNode(true));
-            }
+        selectClassroom.appendChild(opt.cloneNode(true));
+        if (teacherSelectClassroom) {
+            teacherSelectClassroom.appendChild(opt.cloneNode(true));
         }
-        const isNormalClassroom = cr.name === "班級教室" ||
-            cr.type === "普通" ||
-            cr.type === "普通教室" ||
-            (cr.type && cr.type.includes("普通"));
-        if (selectClassroomView && !isNormalClassroom) {
+        if (selectClassroomView && cr.name !== "班級教室") {
             selectClassroomView.appendChild(opt.cloneNode(true));
+        }
+
+        if (mgtSelectClassroomName && cr.name !== "班級教室") {
+            const mgtOpt = document.createElement("option");
+            mgtOpt.value = cr.name;
+            mgtOpt.textContent = `${cr.name} [${cr.type}]`;
+            mgtSelectClassroomName.appendChild(mgtOpt);
         }
     });
 
     if (selectClassroomView && !selectClassroomView.value) {
-        const nonNormalClassroom = classrooms.find(cr => {
-            const isNormal = cr.name === "班級教室" ||
-                cr.type === "普通" ||
-                cr.type === "普通教室" ||
-                (cr.type && cr.type.includes("普通"));
-            return !isNormal;
-        });
-        if (nonNormalClassroom) {
-            selectClassroomView.value = nonNormalClassroom.id;
+        const firstNonDefaultRoom = classrooms.find(cr => cr.name !== "班級教室");
+        if (firstNonDefaultRoom) {
+            selectClassroomView.value = firstNonDefaultRoom.id;
+        } else if (classrooms.length > 0) {
+            selectClassroomView.value = classrooms[0].id;
         }
     }
 
