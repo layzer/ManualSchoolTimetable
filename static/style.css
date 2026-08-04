@@ -1594,18 +1594,57 @@ body {
 
 .matrix-table td.sticky-col {
     border-right: 2px solid rgba(59, 130, 246, 0.3);
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-/* 可點擊的課程格子 */
-.matrix-cell {
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-width: 70px;
-    position: relative;
+/* ==========================================================================
+   課程總表 (Course Matrix) 欄跟列 Hover 提示顯眼樣式
+   ========================================================================== */
+
+/* 1. 整列 (Row) 懸停高亮 */
+.matrix-table tbody tr:hover > td {
+    background-color: rgba(59, 130, 246, 0.22) !important;
 }
 
-.matrix-cell:hover {
-    background: rgba(59, 130, 246, 0.12) !important;
+/* 2. 整列左側標頭 (Row Header / 班級) 高亮 */
+.matrix-table tbody tr:hover > td.sticky-col,
+.matrix-table tbody td.sticky-col.hover-row-header {
+    background-color: #1e293b !important;
+    color: #38bdf8 !important;
+    font-weight: 700 !important;
+    border-right: 4px solid #06b6d4 !important;
+    box-shadow: 4px 0 12px rgba(6, 182, 212, 0.4) !important;
+}
+
+/* 3. 整欄 (Column) 懸停高亮 */
+.matrix-table tbody tr > td.hover-col {
+    background-color: rgba(59, 130, 246, 0.22) !important;
+}
+
+/* 4. 十字交叉區域 (Row x Column) 雙重高亮 */
+.matrix-table tbody tr:hover > td.hover-col {
+    background-color: rgba(59, 130, 246, 0.38) !important;
+}
+
+/* 5. 當前懸停的儲存格 (Active Focus Cell) */
+.matrix-table .matrix-cell:hover {
+    background-color: rgba(6, 182, 212, 0.45) !important;
+    box-shadow: inset 0 0 0 2px #06b6d4, 0 0 10px rgba(6, 182, 212, 0.5) !important;
+    color: #ffffff !important;
+    z-index: 5 !important;
+}
+
+/* 6. 上方科目標頭 (Column Header / TH) 高亮 */
+.matrix-table th {
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.matrix-table thead th.hover-col-header {
+    background-color: #1e293b !important;
+    color: #38bdf8 !important;
+    font-weight: 700 !important;
+    border-bottom: 4px solid #06b6d4 !important;
+    box-shadow: 0 4px 12px rgba(6, 182, 212, 0.4) !important;
 }
 
 .matrix-cell.has-teacher {

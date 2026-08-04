@@ -3205,12 +3205,14 @@ function renderCourseMatrix() {
             if (course) {
                 const teacher = teachers.find(t => t.id === course.teacher_id);
                 td.classList.add("has-teacher");
+                td.title = `${cls.name} - ${subject} (任課教師：${teacher ? teacher.name : "未指派"}，${course.required_periods}節)`;
                 td.innerHTML = `
                     <div class="cell-teacher">${teacher ? teacher.name : "?"}</div>
                     <div class="cell-periods">${course.required_periods}節</div>
                 `;
             } else {
                 td.classList.add("empty");
+                td.title = `${cls.name} - ${subject} (尚未指派教師)`;
                 td.textContent = "—";
             }
 
@@ -3221,6 +3223,8 @@ function renderCourseMatrix() {
 
         tbody.appendChild(tr);
     });
+
+    bindCourseMatrixHoverListeners();
 }
 
 /**
@@ -3337,8 +3341,10 @@ async function handleMatrixCellClick(classId, subject, tdEl) {
         syncClassTutors();
 
         // 效果呈現
+        const className = classes.find(c => c.id === classId)?.name || "";
         tdEl.classList.remove("empty");
         tdEl.classList.add("has-teacher", "just-assigned");
+        tdEl.title = `${className} - ${subject} (任課教師：${teacher.name}，${existingCourse ? existingCourse.required_periods : 1}節)`;
         tdEl.innerHTML = `
             <div class="cell-teacher">${teacher.name}</div>
             <div class="cell-periods">${existingCourse ? existingCourse.required_periods : 1}節</div>
@@ -3354,7 +3360,6 @@ async function handleMatrixCellClick(classId, subject, tdEl) {
         if (typeof renderTeacherSchedule === "function") renderTeacherSchedule();
         if (typeof renderTeacherCourses === "function") renderTeacherCourses(selectTeacher?.value ? parseInt(selectTeacher.value) : null);
 
-        const className = classes.find(c => c.id === classId)?.name || "";
         showToast(`已將「${className}」的「${subject}」指派給 ${teacher.name}`, "success");
 
     } catch (err) {
@@ -3379,6 +3384,62 @@ function setupCourseMatrixListeners() {
         matrixTeacherSearch.addEventListener("input", () => {
             renderMatrixTeacherList();
         });
+    }
+
+    // 課程總表 欄跟列 Hover 提示互動綁定
+    bindCourseMatrixHoverListeners();
+}
+
+/**
+ * 綁定課程總表 欄位與列的 Hover 高亮互動事件
+ */
+function bindCourseMatrixHoverListeners() {
+    const matrixWrap = document.querySelector(".matrix-table-wrap");
+    const matrixTable = document.getElementById("course-matrix-table");
+
+    if (!matrixTable || matrixTable.dataset.hoverListenersBound === "true") return;
+    matrixTable.dataset.hoverListenersBound = "true";
+
+    const clearHoverEffects = () => {
+        matrixTable.querySelectorAll(".hover-col, .hover-col-header, .hover-row-header").forEach(el => {
+            el.classList.remove("hover-col", "hover-col-header", "hover-row-header");
+        });
+    };
+
+    matrixTable.addEventListener("mouseover", (e) => {
+        const cell = e.target.closest("th, td");
+        if (!cell || !matrixTable.contains(cell)) return;
+
+        const cellIndex = cell.cellIndex;
+        if (cellIndex === undefined || cellIndex < 0) return;
+
+        // 清除之前的 hover 高亮標記
+        matrixTable.querySelectorAll(".hover-col, .hover-col-header, .hover-row-header").forEach(el => {
+            el.classList.remove("hover-col", "hover-col-header", "hover-row-header");
+        });
+
+        // 1. 高亮對應欄位 (Column) 的標頭 (th) 與該欄位所有 td
+        const targetTh = matrixTable.querySelector(`thead tr th:nth-child(${cellIndex + 1})`);
+        if (targetTh) {
+            targetTh.classList.add("hover-col-header");
+        }
+
+        const colTds = matrixTable.querySelectorAll(`tbody tr > td:nth-child(${cellIndex + 1})`);
+        colTds.forEach(td => td.classList.add("hover-col"));
+
+        // 2. 高亮該列 (Row) 的班級標頭 (sticky-col)
+        const tr = cell.parentElement;
+        if (tr && tr.parentElement && tr.parentElement.tagName === "TBODY") {
+            const rowHeader = tr.querySelector("td.sticky-col");
+            if (rowHeader) {
+                rowHeader.classList.add("hover-row-header");
+            }
+        }
+    });
+
+    matrixTable.addEventListener("mouseleave", clearHoverEffects);
+    if (matrixWrap) {
+        matrixWrap.addEventListener("mouseleave", clearHoverEffects);
     }
 }
 
