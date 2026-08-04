@@ -1938,7 +1938,7 @@ function renderCurriculumView() {
             const opt = document.createElement("option");
             opt.value = t.id;
             opt.textContent = t.name;
-            if (t.id === c.teacher_id) opt.selected = true;
+            if (String(t.id) === String(c.teacher_id)) opt.selected = true;
             tSelect.appendChild(opt);
         });
         tSelect.addEventListener("change", async () => {
@@ -2038,9 +2038,15 @@ async function handleCurriculumUpdateCourse(courseId, changes) {
     await dbSet("mst_courses", courses);
     syncClassTutors();
     showToast("課程設定已更新！", "success");
+    
+    // 全面刷新關聯 UI
     renderCurriculumView();
     renderTeacherSummary();
     renderCourses();
+    if (typeof populateTeacherSelect === "function") populateTeacherSelect();
+    if (typeof renderTeacherSchedule === "function") renderTeacherSchedule();
+    if (typeof renderTeacherCourses === "function") renderTeacherCourses(selectTeacher?.value ? parseInt(selectTeacher.value) : null);
+    if (typeof renderCourseMatrix === "function") renderCourseMatrix();
 }
 
 // --- Tab 4 新增科目至班級的表單監聽 ---
@@ -2778,9 +2784,17 @@ function renderMatrixTeacherList() {
         if (matrixSelectedTeacherId === t.id) item.classList.add("selected");
         item.dataset.teacherId = t.id;
 
+        let periodBadgeClass = "";
+        let periodBadgeStyle = "";
+        if (totalPeriods > 24) {
+            periodBadgeStyle = "background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.5); font-weight: 700;";
+        } else if (totalPeriods > 20) {
+            periodBadgeStyle = "background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.5); font-weight: 700;";
+        }
+
         item.innerHTML = `
             <span class="teacher-name">${t.name}</span>
-            <span class="teacher-periods">${totalPeriods} 節</span>
+            <span class="teacher-periods" style="${periodBadgeStyle}">${totalPeriods} 節</span>
         `;
 
         item.addEventListener("click", () => {
@@ -2841,46 +2855,27 @@ async function handleMatrixCellClick(classId, subject, tdEl) {
     }
 
     try {
-        const payload = {
-            name: subject,
-            teacher_id: matrixSelectedTeacherId,
-            class_id: classId,
-            classroom_name: "班級教室",
-            week_type: "EVERY",
-            required_periods: existingCourse ? existingCourse.required_periods : 1
-        };
-
         if (existingCourse) {
-            // 更新現有課程的教師
-            const res = await fetch(`/api/courses/${existingCourse.id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-            if (res.ok) {
-                const updated = await res.json();
-                courses = courses.map(c => c.id === updated.id ? updated : c);
-            } else {
-                showToast("更新失敗", "error");
-                return;
-            }
+            existingCourse.teacher_id = matrixSelectedTeacherId;
         } else {
-            // 新增課程
-            const res = await fetch("/api/courses", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-            if (res.ok) {
-                const newCourse = await res.json();
-                courses.push(newCourse);
-            } else {
-                showToast("新增失敗", "error");
-                return;
-            }
+            const newCourse = {
+                id: getNextId(courses),
+                name: subject,
+                teacher_id: matrixSelectedTeacherId,
+                class_id: classId,
+                classroom_name: "班級教室",
+                week_type: "EVERY",
+                required_periods: 1,
+                paired_course_id: null
+            };
+            courses.push(newCourse);
         }
 
-        // 更新格子顯示
+        // 寫入前端本地資料庫 (localForage)
+        await dbSet("mst_courses", courses);
+        syncClassTutors();
+
+        // 效果呈現
         tdEl.classList.remove("empty");
         tdEl.classList.add("has-teacher", "just-assigned");
         tdEl.innerHTML = `
@@ -2889,8 +2884,14 @@ async function handleMatrixCellClick(classId, subject, tdEl) {
         `;
         setTimeout(() => tdEl.classList.remove("just-assigned"), 500);
 
-        // 更新教師名單的節數顯示
+        // 連動更新全系統 UI
         renderMatrixTeacherList();
+        renderCurriculumView();
+        renderTeacherSummary();
+        renderCourses();
+        if (typeof populateTeacherSelect === "function") populateTeacherSelect();
+        if (typeof renderTeacherSchedule === "function") renderTeacherSchedule();
+        if (typeof renderTeacherCourses === "function") renderTeacherCourses(selectTeacher?.value ? parseInt(selectTeacher.value) : null);
 
         const className = classes.find(c => c.id === classId)?.name || "";
         showToast(`已將「${className}」的「${subject}」指派給 ${teacher.name}`, "success");
