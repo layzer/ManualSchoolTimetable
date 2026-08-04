@@ -93,6 +93,8 @@ const btnExportClassCsv = document.getElementById("btn-export-class-csv");
 const btnExportTeacherCsv = document.getElementById("btn-export-teacher-csv");
 const btnExportClassPdf = document.getElementById("btn-export-class-pdf");
 const btnExportTeacherPdf = document.getElementById("btn-export-teacher-pdf");
+const btnExportTeacherScheduleTsv = document.getElementById("btn-export-teacher-schedule-tsv");
+const btnExportCourseDatabaseTsv = document.getElementById("btn-export-course-database-tsv");
 const btnClearDatabase = document.getElementById("btn-clear-database");
 
 
@@ -2290,6 +2292,20 @@ function setupSettingsListeners() {
         });
     }
 
+    // 8. 匯出調代課教師課表 (TSV)
+    if (btnExportTeacherScheduleTsv) {
+        btnExportTeacherScheduleTsv.addEventListener("click", () => {
+            exportTeacherScheduleTsv();
+        });
+    }
+
+    // 9. 匯出調代課課程資料庫 (TSV)
+    if (btnExportCourseDatabaseTsv) {
+        btnExportCourseDatabaseTsv.addEventListener("click", () => {
+            exportCourseDatabaseTsv();
+        });
+    }
+
     // 8. 清空系統資料庫
     if (btnClearDatabase) {
         btnClearDatabase.addEventListener("click", async () => {
@@ -2418,6 +2434,209 @@ function exportAllClassesCsv() {
     const a = document.createElement("a");
     a.href = url;
     a.download = `全體班級與專科教室總課表.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function exportAllTeachersCsv() {
+    if (teachers.length === 0) {
+        showToast("無教師資料可匯出", "error");
+        return;
+    }
+
+    let csvContent = "\uFEFF";
+
+    const schedulablePeriods = (systemConfig && systemConfig.periods && systemConfig.periods.length > 0)
+        ? systemConfig.periods.filter(p => p.is_schedulable).map(p => parseInt(p.id))
+        : [1, 2, 3, 4, 5, 6, 7, 8];
+
+    const weekdays = ["一", "二", "三", "四", "五"];
+    let headers = ["教師姓名", "身份/職稱"];
+    weekdays.forEach(w => {
+        schedulablePeriods.forEach(p => {
+            headers.push(`${w}${p}`);
+        });
+    });
+    headers.push("授課總節數");
+    csvContent += headers.join(",") + "\n";
+
+    teachers.forEach(t => {
+        const tutorInfo = t.is_tutor ? "導師" : "專任教師";
+        let row = [t.name, tutorInfo];
+        let totalPeriods = 0;
+
+        const teacherCourses = courses.filter(c => c.teacher_id === t.id);
+        const teacherCourseIds = new Set(teacherCourses.map(c => c.id));
+
+        for (let d = 1; d <= 5; d++) {
+            for (const p of schedulablePeriods) {
+                const scheds = schedules
+                    .filter(s => teacherCourseIds.has(s.course_id) && s.weekday === d && s.period === p)
+                    .sort((a, b) => {
+                        if (a.week_type === "ODD" && b.week_type === "EVEN") return -1;
+                        if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
+                        return 0;
+                    });
+
+                let cellParts = [];
+                scheds.forEach(s => {
+                    const course = courses.find(c => c.id === s.course_id);
+                    const cls = classes.find(c => c.id === s.class_id);
+                    if (course && cls) {
+                        let text = `${course.name}(${cls.name})`;
+                        if (s.week_type === "ODD") {
+                            text += "(單)";
+                            totalPeriods += 0.5;
+                        } else if (s.week_type === "EVEN") {
+                            text += "(雙)";
+                            totalPeriods += 0.5;
+                        } else {
+                            totalPeriods += 1;
+                        }
+                        cellParts.push(text);
+                    }
+                });
+
+                const cellText = cellParts.join(" ");
+                row.push(`"${cellText}"`);
+            }
+        }
+        row.push(totalPeriods);
+        csvContent += row.join(",") + "\n";
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `全體教師總課表.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function exportTeacherScheduleTsv() {
+    if (teachers.length === 0) {
+        showToast("無教師資料可匯出", "error");
+        return;
+    }
+
+    const weekdaysMap = { 1: "一", 2: "二", 3: "三", 4: "四", 5: "五" };
+    let lines = [];
+
+    let headerParts = ["科目", "教師名稱"];
+    for (let wd = 1; wd <= 5; wd++) {
+        for (let pd = 1; pd <= 8; pd++) {
+            const wdName = weekdaysMap[wd];
+            headerParts.push(`${wdName}${pd}課程`);
+            headerParts.push(`${wdName}${pd}班級`);
+        }
+    }
+    lines.push(headerParts.join("\t"));
+
+    teachers.forEach(teacher => {
+        const teacherCourses = courses.filter(c => c.teacher_id === teacher.id);
+        if (teacherCourses.length === 0) return;
+
+        const subjectSet = {};
+        teacherCourses.forEach(c => {
+            if (!subjectSet[c.name]) {
+                subjectSet[c.name] = [];
+            }
+            subjectSet[c.name].push(c);
+        });
+
+        const sortedSubjectNames = Object.keys(subjectSet).sort();
+        sortedSubjectNames.forEach(subjectName => {
+            const subjectCourses = subjectSet[subjectName];
+
+            const slotMap = {};
+            subjectCourses.forEach(c => {
+                const cls = classes.find(item => item.id === c.class_id);
+                const className = cls ? cls.name : "";
+
+                const cSchedules = schedules.filter(s => s.course_id === c.id);
+                cSchedules.forEach(s => {
+                    const key = `${s.weekday}_${s.period}`;
+                    if (!slotMap[key]) {
+                        slotMap[key] = [];
+                    }
+                    slotMap[key].push({ courseName: c.name, className: className });
+                });
+            });
+
+            let row = [subjectName, teacher.name];
+            for (let wd = 1; wd <= 5; wd++) {
+                for (let pd = 1; pd <= 8; pd++) {
+                    const key = `${wd}_${pd}`;
+                    const entries = slotMap[key] || [];
+                    if (entries.length > 0) {
+                        const courseNamesStr = entries.map(e => e.courseName).join("/");
+                        const classNamesStr = entries.map(e => e.className).join("/");
+                        row.push(courseNamesStr);
+                        row.push(classNamesStr);
+                    } else {
+                        row.push("");
+                        row.push("");
+                    }
+                }
+            }
+            lines.push(row.join("\t"));
+        });
+    });
+
+    const tsvContent = "\uFEFF" + lines.join("\n");
+    const blob = new Blob([tsvContent], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `teacher_schedule.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function exportCourseDatabaseTsv() {
+    if (schedules.length === 0) {
+        showToast("無排課資料可匯出", "error");
+        return;
+    }
+
+    const weekdaysMap = { 1: "一", 2: "二", 3: "三", 4: "四", 5: "五" };
+    let lines = ["班級\t星期\t節次\t課程名稱\t教師名稱"];
+
+    const sortedSchedules = [...schedules].sort((a, b) => {
+        if (a.class_id !== b.class_id) return a.class_id > b.class_id ? 1 : -1;
+        if (a.weekday !== b.weekday) return a.weekday - b.weekday;
+        return a.period - b.period;
+    });
+
+    sortedSchedules.forEach(sched => {
+        const cls = classes.find(c => c.id === sched.class_id);
+        const className = cls ? cls.name : String(sched.class_id);
+
+        const course = courses.find(c => c.id === sched.course_id);
+        if (!course) return;
+        const courseName = course.name;
+
+        const teacher = teachers.find(t => t.id === course.teacher_id);
+        const teacherName = teacher ? teacher.name : "";
+
+        const classroom = classrooms.find(cr => cr.id === sched.classroom_id);
+        const classroomName = (classroom && classroom.name !== "班級教室" && classroom.type !== "普通") ? classroom.name : "";
+
+        const teacherField = classroomName ? `${teacherName}&${classroomName}` : teacherName;
+
+        const weekdayStr = weekdaysMap[sched.weekday] || String(sched.weekday);
+        const periodStr = String(sched.period);
+
+        lines.push([className, weekdayStr, periodStr, courseName, teacherField].join("\t"));
+    });
+
+    const tsvContent = "\uFEFF" + lines.join("\n");
+    const blob = new Blob([tsvContent], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `course_database.txt`;
     a.click();
     URL.revokeObjectURL(url);
 }
