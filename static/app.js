@@ -93,6 +93,7 @@ const btnExportClassCsv = document.getElementById("btn-export-class-csv");
 const btnExportTeacherCsv = document.getElementById("btn-export-teacher-csv");
 const btnExportClassPdf = document.getElementById("btn-export-class-pdf");
 const btnExportTeacherPdf = document.getElementById("btn-export-teacher-pdf");
+const btnClearDatabase = document.getElementById("btn-clear-database");
 
 
 // --- localForage 配置與 Store Helper ---
@@ -2286,6 +2287,25 @@ function setupSettingsListeners() {
     if (btnExportTeacherPdf) {
         btnExportTeacherPdf.addEventListener("click", () => {
             exportAllTeachersPdf();
+        });
+    }
+
+    // 8. 清空系統資料庫
+    if (btnClearDatabase) {
+        btnClearDatabase.addEventListener("click", async () => {
+            if (!confirm("⚠️ 警告：此操作將會清空系統中所有的班級、教師、教室、課程與排課資料！\n\n您確定要清空資料庫嗎？")) {
+                return;
+            }
+            if (!confirm("這是一項不可逆的操作！資料清空後將無法復原，確定要繼續嗎？")) {
+                return;
+            }
+            try {
+                await localforage.clear();
+                showToast("系統資料庫已成功清空，即將重新載入頁面...", "success");
+                setTimeout(() => window.location.reload(), 1500);
+            } catch (error) {
+                showToast("清空資料庫失敗：" + error.message, "error");
+            }
         });
     }
 }
