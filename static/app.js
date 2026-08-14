@@ -1520,7 +1520,10 @@ function teacherLog(msg, type = "system-msg") {
 /**
  * 智慧讀取 CSV / 文本檔案內容：
  * 1. 自動偵測並剔除 UTF-8 BOM、UTF-16LE BOM、UTF-16BE BOM。
- * 2. 若無 BOM，優先嘗試嚴格模式 UTF-8 解碼；若失敗（例如 Excel 另存之 Big5/CP950 ANSI 檔案）則自動切換至 Big5 解碼。
+ * 2. 採用多重編碼探測與繁體中文啟發式品質評分：
+ *    - 優先比對 UTF-8 (strict) 與 Big5 (CP950 / ANSI)。
+ *    - 自動偵測是否出現替換字元 (\uFFFD) 或非標準字元。
+ *    - 若 Big5 包含更多有效繁體中文字且無亂碼，自動採用 Big5 解碼。
  * 3. 徹底剔除檔首與字串開頭的所有 BOM (\uFEFF, \uFFFE) 與零寬不可見字元 (\u200B)。
  */
 async function readCsvFileAsText(file) {
@@ -1530,32 +1533,58 @@ async function readCsvFileAsText(file) {
 
     // 1. 檢查 BOM (Byte Order Mark)
     if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
-        // UTF-8 with BOM
         decodedText = new TextDecoder('utf-8').decode(bytes.subarray(3));
+        return decodedText.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "");
     } else if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
-        // UTF-16LE
         decodedText = new TextDecoder('utf-16le').decode(bytes.subarray(2));
+        return decodedText.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "");
     } else if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
-        // UTF-16BE
         decodedText = new TextDecoder('utf-16be').decode(bytes.subarray(2));
-    } else {
-        // 2. 無 BOM，先嘗試嚴格 UTF-8 解碼 (若含有 Big5 中文字元將會拋出例外)
-        try {
-            const utf8Strict = new TextDecoder('utf-8', { fatal: true });
-            decodedText = utf8Strict.decode(bytes);
-        } catch (e) {
-            // 3. UTF-8 解碼失敗，自動切換至 Big5 (繁體中文 Windows Excel 預設 ANSI 編碼)
-            try {
-                const big5Decoder = new TextDecoder('big5');
-                decodedText = big5Decoder.decode(bytes);
-            } catch (errBig5) {
-                // 若極特殊環境不支援 big5，則使用寬鬆 utf-8 降級容錯
-                decodedText = new TextDecoder('utf-8').decode(bytes);
-            }
-        }
+        return decodedText.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "");
     }
 
-    // 4. 清除檔首 BOM 與不可見空白控制字元
+    // 2. 無 BOM 時，使用品質評分機制 (UTF-8 vs Big5)
+    let textUtf8 = null;
+    let textBig5 = null;
+    
+    try {
+        const utf8Strict = new TextDecoder('utf-8', { fatal: true });
+        textUtf8 = utf8Strict.decode(bytes);
+    } catch (e) {
+        textUtf8 = null;
+    }
+
+    try {
+        const big5Decoder = new TextDecoder('big5');
+        textBig5 = big5Decoder.decode(bytes);
+    } catch (e) {
+        textBig5 = null;
+    }
+
+    if (textUtf8 !== null && textBig5 === null) {
+        decodedText = textUtf8;
+    } else if (textUtf8 === null && textBig5 !== null) {
+        decodedText = textBig5;
+    } else if (textUtf8 !== null && textBig5 !== null) {
+        // 兩者皆成功時，比對繁體中文字元出現率與替換字元
+        const countChineseUtf8 = (textUtf8.match(/[\u4e00-\u9fa5]/g) || []).length;
+        const countChineseBig5 = (textBig5.match(/[\u4e00-\u9fa5]/g) || []).length;
+        const countReplUtf8 = (textUtf8.match(/\uFFFD/g) || []).length;
+        const countReplBig5 = (textBig5.match(/\uFFFD/g) || []).length;
+
+        if (countReplUtf8 > 0 && countReplBig5 === 0) {
+            decodedText = textBig5;
+        } else if (countChineseBig5 > countChineseUtf8 * 1.5) {
+            decodedText = textBig5;
+        } else {
+            decodedText = textUtf8;
+        }
+    } else {
+        // 最終寬鬆容錯
+        decodedText = new TextDecoder('utf-8').decode(bytes);
+    }
+
+    // 3. 清除檔首 BOM 與不可見空白控制字元
     return decodedText.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "");
 }
 
