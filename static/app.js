@@ -1517,15 +1517,74 @@ function teacherLog(msg, type = "system-msg") {
 // ==================== CSV 批次匯入整合功能 ===============================
 // =========================================================================
 
+/**
+ * 智慧讀取 CSV / 文本檔案內容：
+ * 1. 自動偵測並剔除 UTF-8 BOM、UTF-16LE BOM、UTF-16BE BOM。
+ * 2. 若無 BOM，優先嘗試嚴格模式 UTF-8 解碼；若失敗（例如 Excel 另存之 Big5/CP950 ANSI 檔案）則自動切換至 Big5 解碼。
+ * 3. 徹底剔除檔首與字串開頭的所有 BOM (\uFEFF, \uFFFE) 與零寬不可見字元 (\u200B)。
+ */
+async function readCsvFileAsText(file) {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let decodedText = "";
+
+    // 1. 檢查 BOM (Byte Order Mark)
+    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+        // UTF-8 with BOM
+        decodedText = new TextDecoder('utf-8').decode(bytes.subarray(3));
+    } else if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+        // UTF-16LE
+        decodedText = new TextDecoder('utf-16le').decode(bytes.subarray(2));
+    } else if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+        // UTF-16BE
+        decodedText = new TextDecoder('utf-16be').decode(bytes.subarray(2));
+    } else {
+        // 2. 無 BOM，先嘗試嚴格 UTF-8 解碼 (若含有 Big5 中文字元將會拋出例外)
+        try {
+            const utf8Strict = new TextDecoder('utf-8', { fatal: true });
+            decodedText = utf8Strict.decode(bytes);
+        } catch (e) {
+            // 3. UTF-8 解碼失敗，自動切換至 Big5 (繁體中文 Windows Excel 預設 ANSI 編碼)
+            try {
+                const big5Decoder = new TextDecoder('big5');
+                decodedText = big5Decoder.decode(bytes);
+            } catch (errBig5) {
+                // 若極特殊環境不支援 big5，則使用寬鬆 utf-8 降級容錯
+                decodedText = new TextDecoder('utf-8').decode(bytes);
+            }
+        }
+    }
+
+    // 4. 清除檔首 BOM 與不可見空白控制字元
+    return decodedText.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "");
+}
+
+/**
+ * 清理 CSV 單元格字串：去除前後空白、引號包裹以及殘留的 BOM/零寬字元
+ */
+function cleanCsvCell(cell) {
+    if (cell === undefined || cell === null) return "";
+    let s = String(cell).trim();
+    if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+        s = s.slice(1, -1).trim();
+    }
+    return s.replace(/[\uFEFF\uFFFE\u200B]/g, "").trim();
+}
+
 function setupCSVImports() {
     const inputTeachers = document.getElementById("input-import-teachers-csv");
     if (inputTeachers) {
         inputTeachers.addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            const text = await file.text();
-            await processCSVImport(text, "teachers");
-            e.target.value = "";
+            try {
+                const text = await readCsvFileAsText(file);
+                await processCSVImport(text, "teachers");
+            } catch (err) {
+                showToast("讀取教師 CSV 失敗：" + err.message, "error");
+            } finally {
+                e.target.value = "";
+            }
         });
     }
 
@@ -1534,9 +1593,14 @@ function setupCSVImports() {
         inputClassrooms.addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            const text = await file.text();
-            await processCSVImport(text, "classrooms");
-            e.target.value = "";
+            try {
+                const text = await readCsvFileAsText(file);
+                await processCSVImport(text, "classrooms");
+            } catch (err) {
+                showToast("讀取教室 CSV 失敗：" + err.message, "error");
+            } finally {
+                e.target.value = "";
+            }
         });
     }
 
@@ -1545,16 +1609,28 @@ function setupCSVImports() {
         inputCourses.addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            const text = await file.text();
-            await processCSVImport(text, "courses");
-            e.target.value = "";
+            try {
+                const text = await readCsvFileAsText(file);
+                await processCSVImport(text, "courses");
+            } catch (err) {
+                showToast("讀取課程 CSV 失敗：" + err.message, "error");
+            } finally {
+                e.target.value = "";
+            }
         });
     }
 }
 
 async function processCSVImport(text, type) {
-    const clean = text.replace(/^[\uFEFF\uFFFE]/, "");
-    const lines = clean.split(/\r?\n/).filter(l => l.trim() && !l.trim().startsWith("#"));
+    if (!text) {
+        showToast("CSV 檔案內容為空！", "error");
+        return;
+    }
+    const clean = text.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "");
+    const lines = clean.split(/\r?\n/)
+        .map(l => l.replace(/[\uFEFF\uFFFE\u200B]/g, ""))
+        .filter(l => l.trim() && !l.trim().startsWith("#"));
+        
     if (lines.length === 0) {
         showToast("CSV 檔案沒有有效資料！", "error");
         return;
@@ -1565,15 +1641,15 @@ async function processCSVImport(text, type) {
 
     if (type === "teachers") {
         dataLines.forEach(line => {
-            const cols = line.split(",");
-            const name = (cols[0] || "").trim();
+            const cols = line.split(",").map(cleanCsvCell);
+            const name = cols[0] || "";
             if (!name) return;
             const slots = [];
             for (let day = 1; day <= 5; day++) {
-                const cell = (cols[day] || "").trim();
+                const cell = cols[day] || "";
                 if (!cell) continue;
                 cell.split(";").forEach(p => {
-                    const period = parseInt(p.trim());
+                    const period = parseInt(cleanCsvCell(p));
                     if (period > 0) slots.push(`${day}-${period}`);
                 });
             }
@@ -1593,10 +1669,10 @@ async function processCSVImport(text, type) {
         await dbSet("mst_teachers", teachers);
     } else if (type === "classrooms") {
         dataLines.forEach(line => {
-            const cols = line.split(",");
-            const name = (cols[0] || "").trim();
+            const cols = line.split(",").map(cleanCsvCell);
+            const name = cols[0] || "";
             if (!name) return;
-            const cType = (cols[1] || "").trim() || "普通";
+            const cType = cols[1] || "普通";
             let room = classrooms.find(r => r.name === name);
             if (room) {
                 room.type = cType;
@@ -1612,16 +1688,16 @@ async function processCSVImport(text, type) {
         await dbSet("mst_classrooms", classrooms);
     } else if (type === "courses") {
         dataLines.forEach(line => {
-            const cols = line.split(",");
-            const classQuery = (cols[0] || "").trim();
-            const subject = (cols[1] || "").trim();
+            const cols = line.split(",").map(cleanCsvCell);
+            const classQuery = cols[0] || "";
+            const subject = cols[1] || "";
             if (!classQuery || !subject) return;
 
             // 支援班級代號 (101) 或 班級名稱 (一年忠班) 比對
             const cls = classes.find(c => String(c.code) === classQuery || c.name === classQuery);
             if (!cls) return;
 
-            const teacherName = (cols[3] || "").trim();
+            const teacherName = cols[3] || "";
             let teacherId = null;
             if (teacherName) {
                 let teacher = teachers.find(t => t.name === teacherName);
@@ -1638,10 +1714,10 @@ async function processCSVImport(text, type) {
             }
 
             const periodsCount = parseFloat(cols[2]) || 1;
-            const roomName = (cols[4] || "").trim() || "班級教室";
+            const roomName = cols[4] || "班級教室";
             
             // 單雙週中文轉換
-            const rawWType = (cols[5] || "").trim();
+            const rawWType = cols[5] || "";
             let wType = "EVERY";
             if (rawWType.includes("單") || rawWType.toUpperCase() === "ODD") {
                 wType = "ODD";
@@ -2236,25 +2312,23 @@ function setupSettingsListeners() {
                 e.target.value = "";
                 return;
             }
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                try {
-                    const jsonPayload = JSON.parse(ev.target.result);
-                    if (jsonPayload.config) await dbSet("mst_config", jsonPayload.config);
-                    if (jsonPayload.classes) await dbSet("mst_classes", jsonPayload.classes);
-                    if (jsonPayload.classrooms) await dbSet("mst_classrooms", jsonPayload.classrooms);
-                    if (jsonPayload.teachers) await dbSet("mst_teachers", jsonPayload.teachers);
-                    if (jsonPayload.courses) await dbSet("mst_courses", jsonPayload.courses);
-                    if (jsonPayload.schedules) await dbSet("mst_schedules", jsonPayload.schedules);
+            try {
+                const textContent = await readCsvFileAsText(file);
+                const jsonPayload = JSON.parse(textContent);
+                if (jsonPayload.config) await dbSet("mst_config", jsonPayload.config);
+                if (jsonPayload.classes) await dbSet("mst_classes", jsonPayload.classes);
+                if (jsonPayload.classrooms) await dbSet("mst_classrooms", jsonPayload.classrooms);
+                if (jsonPayload.teachers) await dbSet("mst_teachers", jsonPayload.teachers);
+                if (jsonPayload.courses) await dbSet("mst_courses", jsonPayload.courses);
+                if (jsonPayload.schedules) await dbSet("mst_schedules", jsonPayload.schedules);
 
-                    showToast("系統資料匯入成功，即將重整頁面", "success");
-                    setTimeout(() => window.location.reload(), 1500);
-                } catch (error) {
-                    showToast("檔案讀取或匯入失敗：" + error.message, "error");
-                }
+                showToast("系統資料匯入成功，即將重整頁面", "success");
+                setTimeout(() => window.location.reload(), 1500);
+            } catch (error) {
+                showToast("檔案讀取或匯入失敗：" + error.message, "error");
+            } finally {
                 e.target.value = "";
-            };
-            reader.readAsText(file);
+            }
         });
     }
 
