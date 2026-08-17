@@ -602,17 +602,23 @@ async function loadAllData() {
 
 // --- 填充下拉選單 ---
 function populateSelectors() {
+    const prevClassId = selectClass ? selectClass.value : null;
+    const prevClassroomView = selectClassroomView ? selectClassroomView.value : null;
+    const prevTeacherClassroom = teacherSelectClassroom ? teacherSelectClassroom.value : null;
+
     selectClass.innerHTML = '<option value="">-- 請選擇班級 --</option>';
     classes.forEach(c => {
         const opt = document.createElement("option");
         opt.value = c.id;
         opt.textContent = `${c.name} (${c.grade}年級)`;
-        if (selectedClassId === c.id) opt.selected = true;
+        if (selectedClassId === c.id || (prevClassId && String(c.id) === String(prevClassId))) opt.selected = true;
         selectClass.appendChild(opt);
     });
 
     if (!selectedClassId && classes.length > 0) {
         selectedClassId = classes[0].id;
+        selectClass.value = selectedClassId;
+    } else if (selectedClassId) {
         selectClass.value = selectedClassId;
     }
 
@@ -642,12 +648,16 @@ function populateSelectors() {
         }
     });
 
-    if (selectClassroomView && !selectClassroomView.value) {
-        const firstNonDefaultRoom = classrooms.find(cr => cr.name !== "班級教室");
-        if (firstNonDefaultRoom) {
-            selectClassroomView.value = firstNonDefaultRoom.id;
-        } else if (classrooms.length > 0) {
-            selectClassroomView.value = classrooms[0].id;
+    if (selectClassroomView) {
+        if (prevClassroomView && classrooms.some(cr => String(cr.id) === String(prevClassroomView))) {
+            selectClassroomView.value = prevClassroomView;
+        } else {
+            const firstNonDefaultRoom = classrooms.find(cr => cr.name !== "班級教室");
+            if (firstNonDefaultRoom) {
+                selectClassroomView.value = firstNonDefaultRoom.id;
+            } else if (classrooms.length > 0) {
+                selectClassroomView.value = classrooms[0].id;
+            }
         }
     }
 
@@ -655,7 +665,11 @@ function populateSelectors() {
     if (defaultCr) {
         selectClassroom.value = defaultCr.id;
         if (teacherSelectClassroom) {
-            teacherSelectClassroom.value = defaultCr.id;
+            if (prevTeacherClassroom && classrooms.some(cr => String(cr.id) === String(prevTeacherClassroom))) {
+                teacherSelectClassroom.value = prevTeacherClassroom;
+            } else {
+                teacherSelectClassroom.value = defaultCr.id;
+            }
         }
     }
 }
@@ -728,8 +742,11 @@ function renderCourses() {
         const remaining = required - scheduledPeriods;
         const isDone = remaining <= 0;
 
+        const isOver = scheduledPeriods > required && required > 0;
         const periodTag = required > 0
-            ? `<span class="period-badge ${isDone ? 'done' : (remaining <= 1 ? 'almost' : '')}">${scheduledPeriods}/${required} 節${isDone ? ' ✓' : ` · 還需 ${remaining} 節`}</span>`
+            ? (isOver
+                ? `<span class="period-badge" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#f87171;">${scheduledPeriods}/${required} 節 · 超出 ${scheduledPeriods - required} 節</span>`
+                : `<span class="period-badge ${isDone ? 'done' : ''}">${scheduledPeriods}/${required} 節${isDone ? ' ✓' : ` · 還需 ${remaining} 節`}</span>`)
             : `<span class="period-badge">${scheduledPeriods} 節已排</span>`;
 
         const roomLabel = c.classroom_name || '班級教室';
@@ -1157,6 +1174,7 @@ async function handleTeacherCourseClickPlace(classId, courseId, weekday, period,
     const weekType = weekTypeEl ? weekTypeEl.value : "EVERY";
     const finalClassroomId = getOrFixClassroomId(courseId, classroomId);
 
+    // 1. 檢查一般衝突（教師時間、教室衝突）
     const conflicts = checkScheduleConflict(
         classId,
         courseId,
@@ -1174,6 +1192,30 @@ async function handleTeacherCourseClickPlace(classId, courseId, weekday, period,
             teacherLog(`排課衝突：${msg}`, "error");
             showToast(msg, "error");
         });
+        return;
+    }
+
+    // 2. 檢查班級在該時段是否已有其他衝突的課程 (班級衝堂防呆)
+    const classConflict = schedules.find(s =>
+        s.class_id === classId &&
+        s.weekday === weekday &&
+        s.period === period &&
+        checkWeekTypeConflict(weekType, s.week_type || "EVERY")
+    );
+
+    if (classConflict && classConflict.course_id !== courseId) {
+        const existingCourse = courses.find(c => c.id === classConflict.course_id);
+        const courseName = existingCourse ? existingCourse.name : "其他課程";
+        const existingTeacher = existingCourse ? teachers.find(t => t.id === existingCourse.teacher_id) : null;
+        const teacherName = existingTeacher ? existingTeacher.name : "";
+        const teacherStr = teacherName ? ` (${teacherName} 老師)` : "";
+
+        showToast(`班級衝堂：該班級在此時段已有課程「${courseName}」${teacherStr}，請先至班級課表取消或調整！`, "error");
+        teacherLog(`排課失敗：班級衝堂，此時段已排定「${courseName}」${teacherStr}`, "error");
+
+        // 觸發紅震動與發光動畫
+        cell.classList.add("grid-cell-conflict");
+        setTimeout(() => cell.classList.remove("grid-cell-conflict"), 1500);
         return;
     }
 
@@ -1203,115 +1245,20 @@ async function handleTeacherCourseClickPlace(classId, courseId, weekday, period,
 // --- 填充 Tab 2 教師下拉選單 ---
 function populateTeacherSelect() {
     if (!selectTeacher) return;
+    const currentVal = selectTeacher.value;
     selectTeacher.innerHTML = '<option value="">-- 請選擇教師 --</option>';
     teachers.forEach(t => {
         const opt = document.createElement("option");
         opt.value = t.id;
         opt.textContent = `${t.name}${t.is_tutor ? ' (導師)' : ''}`;
+        if (currentVal && String(t.id) === String(currentVal)) {
+            opt.selected = true;
+        }
         selectTeacher.appendChild(opt);
     });
-}
 
-// --- 渲染教師待排課程池 (Tab 2 側邊欄) ---
-function renderTeacherCourses(teacherId) {
-    const pool = document.getElementById("teacher-course-pool");
-    if (!pool) return;
-    pool.innerHTML = "";
-
-    if (!teacherId) {
-        pool.innerHTML = `
-            <div class="empty-state">
-                <i class="fa-solid fa-user-tie"></i>
-                <p>請先選擇教師</p>
-            </div>
-        `;
-        return;
-    }
-
-    const tCourses = courses.filter(c => c.teacher_id === teacherId);
-    if (tCourses.length === 0) {
-        pool.innerHTML = `
-            <div class="empty-state">
-                <i class="fa-solid fa-folder-open"></i>
-                <p>該教師尚未指派任何課程</p>
-            </div>
-        `;
-        return;
-    }
-
-    tCourses.forEach(c => {
-        const cls = classes.find(cl => cl.id === c.class_id);
-        const className = cls ? cls.name : "未知班級";
-
-        const card = document.createElement("div");
-        card.className = `course-card week-${(c.week_type || 'EVERY').toLowerCase()}`;
-        if (teacherSelectedCourseId === c.id) {
-            card.classList.add("active");
-        }
-
-        const scheduledPeriods = schedules
-            .filter(s => s.course_id === c.id)
-            .reduce((sum, s) => sum + (s.week_type === "EVERY" ? 1.0 : 0.5), 0);
-        const required = c.required_periods || 0;
-        const remaining = required - scheduledPeriods;
-        const isDone = remaining <= 0;
-
-        const periodTag = required > 0
-            ? `<span class="period-badge ${isDone ? 'done' : (remaining <= 1 ? 'almost' : '')}">${scheduledPeriods}/${required} 節${isDone ? ' ✓' : ` · 還需 ${remaining} 節`}</span>`
-            : `<span class="period-badge">${scheduledPeriods} 節已排</span>`;
-
-        card.innerHTML = `
-            <div class="course-info">
-                <span class="course-name">${c.name} <span class="teacher-inline-name">(${className})</span></span>
-                <span class="room-tag">${c.classroom_name}</span>
-            </div>
-            <div class="course-details">
-                ${periodTag}
-            </div>
-        `;
-
-        card.addEventListener("click", () => {
-            if (teacherSelectedCourseId === c.id) {
-                teacherSelectedCourseId = null;
-                card.classList.remove("active");
-                teacherLog(`已取消選取課程「${c.name} (${className})」`, "system-msg");
-            } else {
-                teacherSelectedCourseId = c.id;
-                pool.querySelectorAll(".course-card").forEach(el => el.classList.remove("active"));
-                card.classList.add("active");
-                teacherLog(`已點選「${c.name} (${className})」課程。請點擊右側課表進行排課。`);
-                autoSwitchTeacherClassroomForCourse(c);
-            }
-        });
-
-        pool.appendChild(card);
-    });
-}
-
-function autoSwitchTeacherClassroomForCourse(course) {
-    if (!teacherSelectClassroom || !course) return;
-
-    let targetRoomName = course.classroom_name;
-    const currentClass = classes.find(c => c.id === course.class_id);
-
-    if (!targetRoomName || targetRoomName === "班級教室" || targetRoomName === "普通") {
-        if (currentClass && currentClass.default_classroom_id) {
-            teacherSelectClassroom.value = currentClass.default_classroom_id;
-            return;
-        }
-        targetRoomName = "班級教室";
-    }
-
-    const matchedRoom = classrooms.find(cr => cr.name === targetRoomName);
-    if (matchedRoom) {
-        teacherSelectClassroom.value = matchedRoom.id;
-    } else {
-        const typeRoom = classrooms.find(cr => cr.type === targetRoomName);
-        if (typeRoom) {
-            teacherSelectClassroom.value = typeRoom.id;
-        } else if (currentClass && currentClass.default_classroom_id) {
-            teacherSelectClassroom.value = currentClass.default_classroom_id;
-        }
+    if (currentVal && teachers.some(t => String(t.id) === String(currentVal))) {
+        selectTeacher.value = currentVal;
     }
 }
 
@@ -1821,7 +1768,7 @@ function renderTeacherSummary() {
         tdPeriods.innerHTML = `
             <span class="stat-value" style="font-size: 15px; color: var(--accent-cyan); font-weight:700;">${scheduledCount}</span>
             <span style="font-size: 13px; color: var(--text-muted);">/ ${plannedTotal} 節</span>
-            ${allDone ? '<span class="badge-complete" style="margin-left: 6px;">✓ 排滿</span>' : (plannedTotal > 0 ? `<span class="badge-pending" style="margin-left: 6px;">差 ${plannedTotal - scheduledCount} 節</span>` : '')}
+            ${allDone ? '<span class="badge-complete" style="margin-left: 6px;">✓ 排滿</span>' : (scheduledCount > plannedTotal && plannedTotal > 0 ? `<span class="badge-pending" style="margin-left: 6px; background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#f87171;">超出 ${scheduledCount - plannedTotal} 節</span>` : (plannedTotal > 0 ? `<span class="badge-pending" style="margin-left: 6px;">差 ${plannedTotal - scheduledCount} 節</span>` : ''))}
         `;
         tr.appendChild(tdPeriods);
 
@@ -1859,22 +1806,32 @@ function renderTeacherSummary() {
 // --- 填充班級課程與教師指派管理下拉選單 ---
 function populateMgtSelectors() {
     if (!mgtSelectClass || !mgtSelectTeacher) return;
+    const prevClass = mgtSelectClass.value;
+    const prevTeacher = mgtSelectTeacher.value;
 
     mgtSelectClass.innerHTML = '<option value="">-- 選擇班級 --</option>';
     classes.forEach(c => {
         const opt = document.createElement("option");
         opt.value = c.id;
         opt.textContent = c.name;
+        if (prevClass && String(c.id) === String(prevClass)) opt.selected = true;
         mgtSelectClass.appendChild(opt);
     });
+    if (prevClass && classes.some(c => String(c.id) === String(prevClass))) {
+        mgtSelectClass.value = prevClass;
+    }
 
     mgtSelectTeacher.innerHTML = '<option value="">-- 選擇教師 --</option>';
     teachers.forEach(t => {
         const opt = document.createElement("option");
         opt.value = t.id;
         opt.textContent = t.name;
+        if (prevTeacher && String(t.id) === String(prevTeacher)) opt.selected = true;
         mgtSelectTeacher.appendChild(opt);
     });
+    if (prevTeacher && teachers.some(t => String(t.id) === String(prevTeacher))) {
+        mgtSelectTeacher.value = prevTeacher;
+    }
 }
 
 // --- Tab 3 新增/異動課程事件 ---
@@ -1969,6 +1926,8 @@ async function handleDeleteCourse(courseId) {
 // --- Tab 4 班級課程設定分頁 ---
 function populateCurriculumSelectors() {
     if (!currSelectClass) return;
+    const prevCurrTeacher = currSelectTeacher ? currSelectTeacher.value : null;
+    const prevCurrClassroom = currSelectClassroomName ? currSelectClassroomName.value : null;
 
     currSelectClass.innerHTML = '<option value="">-- 請選擇班級 --</option>';
     classes.forEach(c => {
@@ -1985,8 +1944,12 @@ function populateCurriculumSelectors() {
             const opt = document.createElement("option");
             opt.value = t.id;
             opt.textContent = `${t.name}${t.is_tutor ? ' (導師)' : ''}`;
+            if (prevCurrTeacher && String(t.id) === String(prevCurrTeacher)) opt.selected = true;
             currSelectTeacher.appendChild(opt);
         });
+        if (prevCurrTeacher && teachers.some(t => String(t.id) === String(prevCurrTeacher))) {
+            currSelectTeacher.value = prevCurrTeacher;
+        }
     }
 
     if (currSelectClassroomName) {
@@ -1996,9 +1959,13 @@ function populateCurriculumSelectors() {
                 const opt = document.createElement("option");
                 opt.value = cr.name;
                 opt.textContent = `${cr.name} [${cr.type}]`;
+                if (prevCurrClassroom && cr.name === prevCurrClassroom) opt.selected = true;
                 currSelectClassroomName.appendChild(opt);
             }
         });
+        if (prevCurrClassroom) {
+            currSelectClassroomName.value = prevCurrClassroom;
+        }
     }
 }
 
@@ -2097,7 +2064,7 @@ function renderCurriculumView() {
         if (isDone && !isOver) {
             tdRemaining.innerHTML = '<span class="badge-complete">已排滿</span>';
         } else if (isOver) {
-            tdRemaining.innerHTML = `<span class="badge-pending" style="background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.4); color: #fca5a5;">超出 ${-diff} 節</span>`;
+            tdRemaining.innerHTML = `<span class="badge-pending" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#f87171;">超出 ${-diff} 節</span>`;
         } else {
             tdRemaining.innerHTML = `<span class="badge-pending">還需 ${diff} 節</span>`;
         }
@@ -3595,9 +3562,12 @@ function renderTeacherCourses(teacherId) {
         const remaining = required - scheduledPeriods;
         const isDone = remaining <= 0;
 
+        const isOver = scheduledPeriods > required && required > 0;
         // 節數顯示標籤
         const periodTag = required > 0
-            ? `<span class="period-badge ${isDone ? 'done' : (remaining <= 1 ? 'almost' : '')}">${scheduledPeriods}/${required} 節${isDone ? ' ✓' : ` · 還需 ${remaining} 節`}</span>`
+            ? (isOver
+                ? `<span class="period-badge" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#f87171;">${scheduledPeriods}/${required} 節 · 超出 ${scheduledPeriods - required} 節</span>`
+                : `<span class="period-badge ${isDone ? 'done' : ''}">${scheduledPeriods}/${required} 節${isDone ? ' ✓' : ` · 還需 ${remaining} 節`}</span>`)
             : `<span class="period-badge">${scheduledPeriods} 節已排</span>`;
 
         // 科目不區分單雙週，移除教師科目池的單雙週標籤
@@ -3631,92 +3601,6 @@ function renderTeacherCourses(teacherId) {
 
         poolEl.appendChild(card);
     });
-}
-
-// --- 處理教師排課 Click-to-Place 行為 ---
-async function handleTeacherCourseClickPlace(courseId, weekday, period, cell) {
-    const course = courses.find(c => c.id === courseId);
-    if (!course) return;
-
-    const weekTypeEl = document.querySelector('input[name="placing-week-type-teacher"]:checked');
-    const weekType = weekTypeEl ? weekTypeEl.value : "EVERY";
-
-    // 檢查班級在該時段是否已有其他衝突的課程 (班級教室衝堂)
-    const classConflict = schedules.find(s =>
-        s.class_id === course.class_id &&
-        s.weekday === weekday &&
-        s.period === period &&
-        !((weekType === "ODD" && s.week_type === "EVEN") || (weekType === "EVEN" && s.week_type === "ODD"))
-    );
-
-    if (classConflict) {
-        const existingCourse = courses.find(c => c.id === classConflict.course_id);
-        const courseName = existingCourse ? existingCourse.name : "其他課程";
-        showToast(`班級教室衝堂：該班級在此時段已有課程「${courseName}」，請先至班級課表取消排課！`, "error");
-        teacherLog(`排課失敗：班級教室衝堂，此時段已排定「${courseName}」`, "error");
-
-        // 觸發紅震動與發光動畫
-        cell.classList.add("grid-cell-conflict");
-        setTimeout(() => cell.classList.remove("grid-cell-conflict"), 1500);
-        return;
-    }
-
-    let classroomId = teacherSelectClassroom ? (parseInt(teacherSelectClassroom.value) || null) : null;
-
-    const payload = {
-        class_id: course.class_id,
-        course_id: courseId,
-        classroom_id: classroomId,
-        weekday: weekday,
-        period: period,
-        week_type: weekType
-    };
-
-    try {
-        // 先呼叫後端 API 檢查衝突
-        const checkRes = await fetch("/api/schedules/check", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
-
-        if (!checkRes.ok) {
-            showToast("檢查排課衝突失敗！", "error");
-            return;
-        }
-
-        const checkResult = await checkRes.json();
-        if (checkResult.has_conflict) {
-            cell.classList.add("grid-cell-conflict");
-            setTimeout(() => cell.classList.remove("grid-cell-conflict"), 1500);
-
-            checkResult.conflict_messages.forEach(msg => {
-                teacherLog(`排課衝突：${msg}`, "error");
-                showToast(msg, "error");
-            });
-            return;
-        }
-
-        // 無衝突，進行寫入
-        const res = await fetch("/api/schedules", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-            await loadAllData();
-            showToast("排課成功！", "success");
-            teacherLog(`排課成功！已點選排入週 ${weekday} 第 ${period} 節。`, "success");
-        } else {
-            const err = await res.json();
-            const detailMsg = typeof err.detail === "object" ? err.detail.message : err.detail;
-            showToast("排課失敗：" + (detailMsg || "伺服器錯誤"), "error");
-        }
-    } catch (err) {
-        showToast("網路錯誤：" + err.message, "error");
-        teacherLog("錯誤：" + err.message, "error");
-    }
 }
 
 // =========================================================================

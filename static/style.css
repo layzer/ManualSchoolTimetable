@@ -1299,9 +1299,9 @@ body {
     border-radius: 6px;
     font-size: 11px;
     font-weight: 600;
-    background: rgba(251, 146, 60, 0.15);
-    border: 1px solid rgba(251, 146, 60, 0.35);
-    color: #fb923c;
+    background: rgba(234, 179, 8, 0.15);
+    border: 1px solid rgba(234, 179, 8, 0.4);
+    color: #facc15;
 }
 
 /* 課程卡片節數進度標籤 */
@@ -1323,11 +1323,7 @@ body {
     color: #34d399;
 }
 
-.period-badge.almost {
-    background: rgba(251, 146, 60, 0.15);
-    border-color: rgba(251, 146, 60, 0.35);
-    color: #fb923c;
-}
+
 
 /* 表格內輕量下拉選單 (Tab 3 & 4 inline select) */
 .mini-select {
