@@ -2515,7 +2515,7 @@ function exportAllTeachersCsv() {
         : [1, 2, 3, 4, 5, 6, 7, 8];
 
     const weekdays = ["一", "二", "三", "四", "五"];
-    let headers = ["教師姓名", "身份/職稱"];
+    let headers = ["教師姓名"];
     weekdays.forEach(w => {
         schedulablePeriods.forEach(p => {
             headers.push(`${w}${p}`);
@@ -2525,8 +2525,7 @@ function exportAllTeachersCsv() {
     csvContent += headers.join(",") + "\n";
 
     teachers.forEach(t => {
-        const tutorInfo = t.is_tutor ? "導師" : "專任教師";
-        let row = [t.name, tutorInfo];
+        let row = [t.name];
         let totalPeriods = 0;
 
         const teacherCourses = courses.filter(c => c.teacher_id === t.id);
@@ -2547,7 +2546,8 @@ function exportAllTeachersCsv() {
                     const course = courses.find(c => c.id === s.course_id);
                     const cls = classes.find(c => c.id === s.class_id);
                     if (course && cls) {
-                        let text = `${course.name}(${cls.name})`;
+                        const classCode = (cls.code !== undefined && cls.code !== null && cls.code !== "") ? cls.code : cls.name;
+                        let text = `${course.name}(${classCode})`;
                         if (s.week_type === "ODD") {
                             text += "(單)";
                             totalPeriods += 0.5;
