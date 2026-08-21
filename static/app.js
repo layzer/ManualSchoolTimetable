@@ -332,6 +332,7 @@ function setupEventListeners() {
 
     selectClass.addEventListener("change", (e) => {
         selectedClassId = e.target.value ? parseInt(e.target.value) : null;
+        selectedCourseId = null;
         updateClassDisplay();
         renderSchedules();
         renderCourses(); 
@@ -696,6 +697,19 @@ function updateClassDisplay() {
     }
 }
 
+// --- 更新班級課表同課程卡片的高亮提示 ---
+function updateClassScheduleHighlights() {
+    const placedCards = document.querySelectorAll("#class-schedule-view .placed-course");
+    placedCards.forEach(card => {
+        const courseId = parseInt(card.dataset.courseId);
+        if (selectedCourseId && courseId === selectedCourseId) {
+            card.classList.add("highlight-matched");
+        } else {
+            card.classList.remove("highlight-matched");
+        }
+    });
+}
+
 // --- 渲染待排課程池 (Sidebar) ---
 function renderCourses() {
     coursePool.innerHTML = "";
@@ -773,11 +787,13 @@ function renderCourses() {
             if (selectedCourseId === c.id) {
                 selectedCourseId = null;
                 card.classList.remove("active");
+                updateClassScheduleHighlights();
                 log(`已取消選取課程「${c.name}」`, "system-msg");
             } else {
                 selectedCourseId = c.id;
                 document.querySelectorAll(".course-card").forEach(el => el.classList.remove("active"));
                 card.classList.add("active");
+                updateClassScheduleHighlights();
                 log(`已點選「${c.name} (${teacherShortName})」課程。請直接點擊右側課表空格進行排課（可點擊多節）。`);
                 autoSwitchClassroomForCourse(c);
             }
@@ -823,6 +839,10 @@ async function renderSchedules() {
 
         const div = document.createElement("div");
         div.className = `placed-course week-${(s.week_type || 'EVERY').toLowerCase()}`;
+        div.dataset.courseId = s.course_id;
+        if (selectedCourseId && s.course_id === selectedCourseId) {
+            div.classList.add("highlight-matched");
+        }
         div.draggable = true;
 
         const weekBadge = s.week_type === "ODD" ? '<span class="week-tag inline">[單]</span> ' :

@@ -666,6 +666,28 @@ body {
     background: var(--grad-even);
 }
 
+/* 選取左側課程時右側同課程卡片的高亮效果 */
+.placed-course.highlight-matched {
+    outline: 2px solid #38bdf8 !important;
+    outline-offset: 1px !important;
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.75), inset 0 0 8px rgba(56, 189, 248, 0.3) !important;
+    filter: brightness(1.2) contrast(1.05);
+    transform: scale(1.02);
+    z-index: 5;
+    animation: matchedPulse 1.8s infinite ease-in-out;
+}
+
+@keyframes matchedPulse {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.6), inset 0 0 6px rgba(56, 189, 248, 0.25);
+        outline-color: #38bdf8;
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(56, 189, 248, 0.95), inset 0 0 12px rgba(56, 189, 248, 0.45);
+        outline-color: #7dd3fc;
+    }
+}
+
 .placed-header {
     display: flex;
     justify-content: space-between;
