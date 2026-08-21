@@ -332,7 +332,7 @@ function setupEventListeners() {
 
     selectClass.addEventListener("change", (e) => {
         selectedClassId = e.target.value ? parseInt(e.target.value) : null;
-        selectedCourseId = null;
+        clearSelectedCourse();
         updateClassDisplay();
         renderSchedules();
         renderCourses(); 
@@ -697,6 +697,13 @@ function updateClassDisplay() {
     }
 }
 
+// --- 清除班級排課選取的課程狀態 ---
+function clearSelectedCourse() {
+    selectedCourseId = null;
+    document.querySelectorAll(".course-card").forEach(el => el.classList.remove("active"));
+    updateClassScheduleHighlights();
+}
+
 // --- 更新班級課表同課程卡片的高亮提示 ---
 function updateClassScheduleHighlights() {
     const placedCards = document.querySelectorAll("#class-schedule-view .placed-course");
@@ -712,6 +719,14 @@ function updateClassScheduleHighlights() {
 
 // --- 渲染待排課程池 (Sidebar) ---
 function renderCourses() {
+    // 若當前選取的課程不屬於該班級，強制清除選取狀態
+    if (selectedCourseId) {
+        const selCourse = courses.find(c => c.id === selectedCourseId);
+        if (!selCourse || selCourse.class_id !== selectedClassId) {
+            clearSelectedCourse();
+        }
+    }
+
     coursePool.innerHTML = "";
     if (courses.length === 0) {
         coursePool.innerHTML = `
@@ -952,6 +967,14 @@ async function handleCourseDrop(weekday, period, classroomId, cell) {
     }
 
     const targetCourseId = draggedScheduleId ? schedules.find(s => s.id === draggedScheduleId)?.course_id : draggedCourseId;
+    if (!draggedScheduleId) {
+        const targetCourse = courses.find(c => c.id === targetCourseId);
+        if (!targetCourse || targetCourse.class_id !== selectedClassId) {
+            showToast("拖曳的課程不屬於當前班級！", "error");
+            log("排課失敗：拖曳的課程不屬於當前選取之班級。", "error");
+            return;
+        }
+    }
     const finalClassroomId = getOrFixClassroomId(targetCourseId, classroomId);
 
     const conflicts = checkScheduleConflict(
@@ -1014,6 +1037,14 @@ async function handleCourseDrop(weekday, period, classroomId, cell) {
 
 // --- 處理 Click-to-Place 排課行為 ---
 async function handleCourseClickPlace(courseId, weekday, period, classroomId, cell) {
+    const targetCourse = courses.find(c => c.id === courseId);
+    if (!targetCourse || targetCourse.class_id !== selectedClassId) {
+        clearSelectedCourse();
+        showToast("選取的課程不屬於當前班級，已取消選取！", "error");
+        log("排課失敗：選取的課程不屬於當前選取之班級。", "error");
+        return;
+    }
+
     const weekTypeEl = document.querySelector('input[name="placing-week-type-class"]:checked');
     const weekType = weekTypeEl ? weekTypeEl.value : "EVERY";
     const finalClassroomId = getOrFixClassroomId(courseId, classroomId);
@@ -1408,6 +1439,7 @@ function renderTeacherSchedule() {
                             if (selectClass) {
                                 selectClass.value = classId;
                                 selectedClassId = classId;
+                                clearSelectedCourse();
                                 updateClassDisplay();
                                 renderSchedules();
                                 renderCourses();
@@ -3047,7 +3079,9 @@ function setupTabListeners() {
 
             if (tabId === "class-schedule-view") {
                 if (vsClassGroup) vsClassGroup.style.display = "flex";
+                clearSelectedCourse();
                 renderSchedules();
+                renderCourses();
             } else if (tabId === "teacher-schedule-view") {
                 if (vsTeacherGroup) vsTeacherGroup.style.display = "flex";
                 renderTeacherSchedule();
@@ -3788,6 +3822,7 @@ function renderClassroomSchedule() {
                             if (selectClass) {
                                 selectClass.value = classId;
                                 selectedClassId = classId;
+                                clearSelectedCourse();
                                 updateClassDisplay();
                                 renderSchedules();
                                 renderCourses();
