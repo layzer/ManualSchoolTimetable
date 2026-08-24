@@ -239,6 +239,10 @@ document.addEventListener("DOMContentLoaded", () => {
     contextMenu = document.getElementById("custom-context-menu");
     menuItemGoto = document.getElementById("menu-item-goto");
     loadAllData().then(() => {
+        if (statusLogger) {
+            statusLogger.innerHTML = "";
+            log("系統就緒。請選擇班級開始排課。", "system-msg", JSON.parse(JSON.stringify(schedules)));
+        }
         setupEventListeners();
         setupTabListeners();
         setupFormAddCourseListener();
@@ -319,13 +323,92 @@ function generateGrid() {
     });
 }
 
+// --- 動作還原 (Rollback) 核心機制 ---
+async function rollbackToSnapshot(snapshot, timeStr) {
+    if (!snapshot || !Array.isArray(snapshot)) {
+        showToast("該紀錄沒有可還原的課表資料！", "error");
+        return;
+    }
+
+    try {
+        // 1. 深拷貝還原排課資料
+        schedules = JSON.parse(JSON.stringify(snapshot));
+        await dbSet("mst_schedules", schedules);
+
+        // 2. 重新載入與刷新所有視圖
+        await loadAllData();
+
+        // 3. 提示訊息與日誌記錄（此還原動作本身也是一個可回溯的快照點）
+        showToast(`已成功還原至 [${timeStr}] 的排課狀態！`, "success");
+        const currentSnapshot = JSON.parse(JSON.stringify(schedules));
+        log(`已還原至 [${timeStr}] 的課表狀態。`, "system-msg", currentSnapshot);
+        if (teacherStatusLogger) {
+            teacherLog(`已還原至 [${timeStr}] 的課表狀態。`, "system-msg", currentSnapshot);
+        }
+        if (classroomStatusLogger) {
+            classroomLog(`已還原至 [${timeStr}] 的課表狀態。`, "system-msg", currentSnapshot);
+        }
+    } catch (err) {
+        console.error("還原動作失敗：", err);
+        showToast("還原失敗：" + err.message, "error");
+    }
+}
+
+// 輔助函式：為日誌項目綁定課表快照與右鍵選單
+function attachSnapshotToLogEntry(div, snapshot, timeStr, msg) {
+    if (!snapshot || !Array.isArray(snapshot)) return;
+
+    div.classList.add("has-snapshot");
+    div.setAttribute("title", `點擊滑鼠右鍵可還原至 [${timeStr}] 的課表狀態`);
+
+    div.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const ul = contextMenu?.querySelector("ul");
+        if (!ul || !contextMenu) return;
+
+        ul.innerHTML = `
+            <li id="menu-item-rollback" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <i class="fa-solid fa-rotate-left" style="color: #60a5fa;"></i>
+                <span>還原到這一步驟 (${timeStr})</span>
+            </li>
+        `;
+
+        const menuItemRollback = document.getElementById("menu-item-rollback");
+        if (menuItemRollback) {
+            menuItemRollback.onclick = async () => {
+                contextMenu.classList.add("hidden");
+                await rollbackToSnapshot(snapshot, timeStr);
+            };
+        }
+
+        // 計算彈出位置，防止超出螢幕邊界
+        const menuWidth = 220;
+        const menuHeight = 50;
+        let left = e.pageX;
+        let top = e.pageY;
+
+        if (left + menuWidth > window.innerWidth) {
+            left = window.innerWidth - menuWidth - 10;
+        }
+        if (top + menuHeight > window.innerHeight) {
+            top = window.innerHeight - menuHeight - 10;
+        }
+
+        contextMenu.style.left = `${left}px`;
+        contextMenu.style.top = `${top}px`;
+        contextMenu.classList.remove("hidden");
+    });
+}
+
 // --- 事件綁定 ---
 function setupEventListeners() {
     document.addEventListener("click", () => {
         if (contextMenu) contextMenu.classList.add("hidden");
     });
     document.addEventListener("contextmenu", (e) => {
-        if (!e.target.closest(".placed-course") && contextMenu) {
+        if (!e.target.closest(".placed-course") && !e.target.closest(".log-entry") && contextMenu) {
             contextMenu.classList.add("hidden");
         }
     });
@@ -360,7 +443,7 @@ function setupEventListeners() {
             setTimeout(() => { icon.style.animation = ""; }, 700);
             try {
                 await loadAllData();
-                log("課表資料已重新整理！", "success");
+                log("課表資料已重新整理！", "success", JSON.parse(JSON.stringify(schedules)));
                 showToast("課表資料已重新整理！", "success");
             } catch (e) {
                 log("重新整理失敗：" + e.message, "error");
@@ -377,7 +460,7 @@ function setupEventListeners() {
             setTimeout(() => { icon.style.animation = ""; }, 700);
             try {
                 await loadAllData();
-                teacherLog("課表資料已重新整理！", "success");
+                teacherLog("課表資料已重新整理！", "success", JSON.parse(JSON.stringify(schedules)));
                 showToast("課表資料已重新整理！", "success");
             } catch (e) {
                 teacherLog("重新整理失敗：" + e.message, "error");
@@ -396,7 +479,7 @@ function setupEventListeners() {
             }
             try {
                 await loadAllData();
-                classroomLog("課表資料已重新整理！", "success");
+                classroomLog("課表資料已重新整理！", "success", JSON.parse(JSON.stringify(schedules)));
                 showToast("課表資料已重新整理！", "success");
             } catch (e) {
                 classroomLog("重新整理失敗：" + e.message, "error");
@@ -1031,8 +1114,20 @@ async function handleCourseDrop(weekday, period, classroomId, cell) {
 
     await dbSet("mst_schedules", schedules);
     await loadAllData();
+    
+    const curClass = classes.find(c => c.id === selectedClassId);
+    const curCourse = courses.find(c => c.id === targetCourseId);
+    const className = curClass ? curClass.name : "該班級";
+    const courseName = curCourse ? curCourse.name : "該課程";
+    
     showToast(draggedScheduleId ? "課表調整成功！" : "排課成功！", "success");
-    log(draggedScheduleId ? `課表調整成功！將課程排至週 ${weekday} 第 ${period} 節。` : `排課成功！已將課程排至週 ${weekday} 第 ${period} 節。`, "success");
+    log(
+        draggedScheduleId
+            ? `課表調整成功！已將「${className}」的「${courseName}」調整至週 ${weekday} 第 ${period} 節。`
+            : `排課成功！已將「${className}」的「${courseName}」排至週 ${weekday} 第 ${period} 節。`,
+        "success",
+        JSON.parse(JSON.stringify(schedules))
+    );
 }
 
 // --- 處理 Click-to-Place 排課行為 ---
@@ -1088,25 +1183,44 @@ async function handleCourseClickPlace(courseId, weekday, period, classroomId, ce
 
     await dbSet("mst_schedules", schedules);
     await loadAllData();
+
+    const curClass = classes.find(c => c.id === selectedClassId);
+    const className = curClass ? curClass.name : "該班級";
+    const courseName = targetCourse.name;
+
     showToast("點選排課成功！", "success");
-    log(`排課成功！已點選排入週 ${weekday} 第 ${period} 節。`, "success");
+    log(`排課成功！已將「${className}」的「${courseName}」排入週 ${weekday} 第 ${period} 節。`, "success", JSON.parse(JSON.stringify(schedules)));
 }
 
 // --- 刪除課表 ---
 async function deleteSchedule(scheduleId) {
+    const targetSched = schedules.find(s => s.id === scheduleId);
+    let detailMsg = "已成功取消一節排課紀錄。";
+    if (targetSched) {
+        const cls = classes.find(c => c.id === targetSched.class_id);
+        const crs = courses.find(c => c.id === targetSched.course_id);
+        const clsName = cls ? cls.name : "該班級";
+        const crsName = crs ? crs.name : "該課程";
+        detailMsg = `已取消「${clsName}」週 ${targetSched.weekday} 第 ${targetSched.period} 節「${crsName}」的排課。`;
+    }
+
     schedules = schedules.filter(s => s.id !== scheduleId);
     await dbSet("mst_schedules", schedules);
     await loadAllData();
     showToast("已成功取消排課！", "success");
-    log("已成功取消一節排課紀錄。", "system-msg");
+    log(detailMsg, "system-msg", JSON.parse(JSON.stringify(schedules)));
 }
 
 // --- 輔助函式：狀態日誌記錄 ---
-function log(msg, type = "system-msg") {
+function log(msg, type = "system-msg", snapshot = null) {
+    if (!statusLogger) return;
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const div = document.createElement("div");
     div.className = `log-entry ${type}`;
     div.innerHTML = `[${time}] ${msg}`;
+    if (snapshot) {
+        attachSnapshotToLogEntry(div, snapshot, time, msg);
+    }
     statusLogger.appendChild(div);
     statusLogger.scrollTop = statusLogger.scrollHeight;
 }
@@ -1289,8 +1403,14 @@ async function handleTeacherCourseClickPlace(classId, courseId, weekday, period,
 
     await dbSet("mst_schedules", schedules);
     await loadAllData();
+
+    const curClass = classes.find(c => c.id === classId);
+    const curCourse = courses.find(c => c.id === courseId);
+    const className = curClass ? curClass.name : "該班級";
+    const courseName = curCourse ? curCourse.name : "該課程";
+
     showToast("點選排課成功！", "success");
-    teacherLog(`排課成功！已點選排入週 ${weekday} 第 ${period} 節。`, "success");
+    teacherLog(`排課成功！已將「${className}」的「${courseName}」排入週 ${weekday} 第 ${period} 節。`, "success", JSON.parse(JSON.stringify(schedules)));
 }
 
 // --- 填充 Tab 2 教師下拉選單 ---
@@ -1502,12 +1622,15 @@ async function handleTeacherSlotClick(weekday, period, cell) {
     }
 }
 
-function teacherLog(msg, type = "system-msg") {
+function teacherLog(msg, type = "system-msg", snapshot = null) {
     if (!teacherStatusLogger) return;
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const div = document.createElement("div");
     div.className = `log-entry ${type}`;
     div.innerHTML = `[${time}] ${msg}`;
+    if (snapshot) {
+        attachSnapshotToLogEntry(div, snapshot, time, msg);
+    }
     teacherStatusLogger.appendChild(div);
     teacherStatusLogger.scrollTop = teacherStatusLogger.scrollHeight;
 }
@@ -1560,24 +1683,10 @@ async function readCsvFileAsText(file) {
         textBig5 = null;
     }
 
-    if (textUtf8 !== null && textBig5 === null) {
+    if (textUtf8 !== null) {
         decodedText = textUtf8;
-    } else if (textUtf8 === null && textBig5 !== null) {
+    } else if (textBig5 !== null) {
         decodedText = textBig5;
-    } else if (textUtf8 !== null && textBig5 !== null) {
-        // 兩者皆成功時，比對繁體中文字元出現率與替換字元
-        const countChineseUtf8 = (textUtf8.match(/[\u4e00-\u9fa5]/g) || []).length;
-        const countChineseBig5 = (textBig5.match(/[\u4e00-\u9fa5]/g) || []).length;
-        const countReplUtf8 = (textUtf8.match(/\uFFFD/g) || []).length;
-        const countReplBig5 = (textBig5.match(/\uFFFD/g) || []).length;
-
-        if (countReplUtf8 > 0 && countReplBig5 === 0) {
-            decodedText = textBig5;
-        } else if (countChineseBig5 > countChineseUtf8 * 1.5) {
-            decodedText = textBig5;
-        } else {
-            decodedText = textUtf8;
-        }
     } else {
         // 最終寬鬆容錯
         decodedText = new TextDecoder('utf-8').decode(bytes);
@@ -2361,18 +2470,68 @@ function setupSettingsListeners() {
                 return;
             }
             try {
-                const textContent = await readCsvFileAsText(file);
-                const jsonPayload = JSON.parse(textContent);
-                if (jsonPayload.config) await dbSet("mst_config", jsonPayload.config);
-                if (jsonPayload.classes) await dbSet("mst_classes", jsonPayload.classes);
-                if (jsonPayload.classrooms) await dbSet("mst_classrooms", jsonPayload.classrooms);
-                if (jsonPayload.teachers) await dbSet("mst_teachers", jsonPayload.teachers);
-                if (jsonPayload.courses) await dbSet("mst_courses", jsonPayload.courses);
-                if (jsonPayload.schedules) await dbSet("mst_schedules", jsonPayload.schedules);
+                let textContent = "";
+                // 優先使用標準 UTF-8 讀取 JSON
+                try {
+                    textContent = await file.text();
+                } catch (readErr) {
+                    const buffer = await file.arrayBuffer();
+                    textContent = new TextDecoder("utf-8").decode(buffer);
+                }
+
+                // 去除可能殘留的 UTF-8 BOM 與零寬空格
+                textContent = textContent.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "").trim();
+
+                let jsonPayload;
+                try {
+                    jsonPayload = JSON.parse(textContent);
+                } catch (jsonErr) {
+                    // 若直接 UTF-8 parse 失敗，再嘗試以 readCsvFileAsText 解碼一次
+                    const altText = (await readCsvFileAsText(file)).replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "").trim();
+                    jsonPayload = JSON.parse(altText);
+                }
+
+                if (!jsonPayload || typeof jsonPayload !== "object") {
+                    throw new Error("無效的 JSON 格式或資料為空");
+                }
+
+                // 智慧相容不同 JSON 備份格式：
+                // 1. config 或 periods
+                if (jsonPayload.config) {
+                    await dbSet("mst_config", jsonPayload.config);
+                } else if (jsonPayload.periods) {
+                    await dbSet("mst_config", { periods: jsonPayload.periods });
+                }
+
+                // 2. classes
+                if (jsonPayload.classes && Array.isArray(jsonPayload.classes)) {
+                    await dbSet("mst_classes", jsonPayload.classes);
+                }
+
+                // 3. classrooms
+                if (jsonPayload.classrooms && Array.isArray(jsonPayload.classrooms)) {
+                    await dbSet("mst_classrooms", jsonPayload.classrooms);
+                }
+
+                // 4. teachers
+                if (jsonPayload.teachers && Array.isArray(jsonPayload.teachers)) {
+                    await dbSet("mst_teachers", jsonPayload.teachers);
+                }
+
+                // 5. courses
+                if (jsonPayload.courses && Array.isArray(jsonPayload.courses)) {
+                    await dbSet("mst_courses", jsonPayload.courses);
+                }
+
+                // 6. schedules
+                if (jsonPayload.schedules && Array.isArray(jsonPayload.schedules)) {
+                    await dbSet("mst_schedules", jsonPayload.schedules);
+                }
 
                 showToast("系統資料匯入成功，即將重整頁面", "success");
-                setTimeout(() => window.location.reload(), 1500);
+                setTimeout(() => window.location.reload(), 1200);
             } catch (error) {
+                console.error("JSON 匯入失敗：", error);
                 showToast("檔案讀取或匯入失敗：" + error.message, "error");
             } finally {
                 e.target.value = "";
@@ -3101,27 +3260,6 @@ function setupTabListeners() {
             }
         });
     });
-}
-
-function setupConfigEditor() {
-    const editor = document.getElementById("setting-config-editor");
-    const btnSave = document.getElementById("btn-save-config");
-
-    if (editor && btnSave) {
-        editor.value = JSON.stringify(systemConfig, null, 2);
-
-        btnSave.addEventListener("click", async () => {
-            try {
-                const newConfig = JSON.parse(editor.value);
-                systemConfig = newConfig;
-                await dbSet("mst_config", systemConfig);
-                showToast("設定檔儲存成功，即將重整", "success");
-                setTimeout(() => window.location.reload(), 1000);
-            } catch (err) {
-                showToast("JSON 格式錯誤: " + err.message, "error");
-            }
-        });
-    }
 }
 
 async function exportAllClassesPdf() {
@@ -3855,12 +3993,15 @@ function renderClassroomSchedule() {
 }
 
 // --- 教室日誌 ---
-function classroomLog(msg, type = "system-msg") {
+function classroomLog(msg, type = "system-msg", snapshot = null) {
     if (!classroomStatusLogger) return;
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const div = document.createElement("div");
     div.className = `log-entry ${type}`;
     div.innerHTML = `[${time}] ${msg}`;
+    if (snapshot) {
+        attachSnapshotToLogEntry(div, snapshot, time, msg);
+    }
     classroomStatusLogger.appendChild(div);
     classroomStatusLogger.scrollTop = classroomStatusLogger.scrollHeight;
 }
