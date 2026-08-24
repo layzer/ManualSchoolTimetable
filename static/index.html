@@ -563,9 +563,7 @@
                             <i class="fa-solid fa-download"></i> 匯出系統備份 (JSON)
                         </button>
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <input type="file" id="input-import-system" accept=".json" style="display: none;">
-                            <button id="btn-import-system" class="btn btn-secondary"
-                                onclick="document.getElementById('input-import-system').click()">
+                            <button id="btn-import-system" class="btn btn-secondary" type="button">
                                 <i class="fa-solid fa-upload"></i> 匯入系統備份 (JSON)
                             </button>
                             <span style="font-size: 12px; color: var(--accent-pink);">⚠️ 匯入將覆蓋現有資料庫！</span>
@@ -838,9 +836,59 @@
         </ul>
     </div>
 
+    <!-- 匯入系統備份 (JSON) 專屬彈窗 Modal -->
+    <div id="modal-import-system" class="custom-modal-backdrop hidden">
+        <div class="custom-modal-card">
+            <div class="custom-modal-header">
+                <h3><i class="fa-solid fa-file-import"></i> 匯入系統資料備份 (JSON)</h3>
+                <button type="button" class="btn-close-modal" id="btn-close-import-modal">&times;</button>
+            </div>
+            <div class="custom-modal-body">
+                <div class="import-method-tabs">
+                    <button type="button" class="import-tab-btn active" id="tab-btn-import-file">
+                        <i class="fa-solid fa-upload"></i> 上傳 JSON 檔案
+                    </button>
+                    <button type="button" class="import-tab-btn" id="tab-btn-import-text">
+                        <i class="fa-solid fa-code"></i> 直接貼上 JSON 內容
+                    </button>
+                </div>
 
+                <!-- 分頁一：檔案上傳 / 拖放 -->
+                <div id="import-pane-file" class="import-pane">
+                    <div class="file-drop-area" id="file-drop-area">
+                        <i class="fa-solid fa-cloud-arrow-up" style="font-size: 36px; color: var(--accent-blue); margin-bottom: 8px;"></i>
+                        <p style="font-size: 14px; font-weight: 500;">點擊選擇 .json 檔案 或 拖曳檔案至此處</p>
+                        <span style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;" id="selected-file-name">尚未選擇任何檔案</span>
+                        <input type="file" id="modal-file-input" accept=".json" style="display: none;">
+                    </div>
+                </div>
 
-    <script src="app.js?v=20260824_log_detail_info"></script>
+                <!-- 分頁二：貼上文字 -->
+                <div id="import-pane-text" class="import-pane hidden">
+                    <textarea id="import-json-textarea" class="import-textarea" placeholder="請在此貼上完整 JSON 系統備份內容..."></textarea>
+                </div>
+
+                <!-- 即時解析預覽狀態 -->
+                <div id="import-preview-box" class="import-preview-box hidden">
+                    <div class="preview-title"><i class="fa-solid fa-circle-check" style="color: #10b981;"></i> 資料解析成功：</div>
+                    <div class="preview-stats" id="preview-stats-content"></div>
+                </div>
+
+                <div class="import-warning-notice">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span>注意：確認匯入後，將會完整覆蓋現有系統資料庫（包含班級、教師、課程與排課資料）。</span>
+                </div>
+            </div>
+            <div class="custom-modal-footer">
+                <button type="button" class="btn btn-secondary" id="btn-cancel-import-modal">取消</button>
+                <button type="button" class="btn btn-primary btn-confirm-import" id="btn-confirm-import-action" disabled>
+                    <i class="fa-solid fa-check"></i> 確認覆蓋並匯入
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=20260824_storage_fallback"></script>
 </body>
 
 </html>

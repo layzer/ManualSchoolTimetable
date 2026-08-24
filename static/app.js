@@ -86,7 +86,24 @@ const settingSelectClassTutor = document.getElementById("setting-select-class-tu
 const settingSelectClassRoom = document.getElementById("setting-select-class-room");
 const settingClassesListBody = document.getElementById("setting-classes-list-body");
 const btnExportSystem = document.getElementById("btn-export-system");
-const inputImportSystem = document.getElementById("input-import-system");
+const btnImportSystem = document.getElementById("btn-import-system");
+const modalImportSystem = document.getElementById("modal-import-system");
+const btnCloseImportModal = document.getElementById("btn-close-import-modal");
+const btnCancelImportModal = document.getElementById("btn-cancel-import-modal");
+const btnConfirmImportAction = document.getElementById("btn-confirm-import-action");
+const tabBtnImportFile = document.getElementById("tab-btn-import-file");
+const tabBtnImportText = document.getElementById("tab-btn-import-text");
+const importPaneFile = document.getElementById("import-pane-file");
+const importPaneText = document.getElementById("import-pane-text");
+const fileDropArea = document.getElementById("file-drop-area");
+const modalFileInput = document.getElementById("modal-file-input");
+const selectedFileName = document.getElementById("selected-file-name");
+const importJsonTextarea = document.getElementById("import-json-textarea");
+const importPreviewBox = document.getElementById("import-preview-box");
+const previewStatsContent = document.getElementById("preview-stats-content");
+
+let pendingImportPayload = null;
+
 const settingExportClass = document.getElementById("setting-export-class");
 const settingExportTeacher = document.getElementById("setting-export-teacher");
 const btnExportClassCsv = document.getElementById("btn-export-class-csv");
@@ -98,8 +115,9 @@ const btnExportCourseDatabaseTsv = document.getElementById("btn-export-course-da
 const btnClearDatabase = document.getElementById("btn-clear-database");
 
 
-// --- localForage 配置與 Store Helper ---
+// --- localForage 配置與 Store Helper（含 localStorage 雙重自動備援）---
 localforage.config({
+    driver: [localforage.INDEXEDDB, localforage.WEBSQL, localforage.LOCALSTORAGE],
     name: 'ManualSchoolTimetableDB',
     storeName: 'mst_store'
 });
@@ -107,19 +125,26 @@ localforage.config({
 async function dbGet(key, defaultVal) {
     try {
         const val = await localforage.getItem(key);
-        return val !== null ? val : defaultVal;
+        if (val !== null && val !== undefined) return val;
     } catch (e) {
-        console.error(`localForage getItem error [${key}]:`, e);
-        return defaultVal;
+        console.warn(`localForage getItem fallback to localStorage [${key}]:`, e);
     }
+    try {
+        const lsVal = localStorage.getItem(key);
+        if (lsVal !== null) return JSON.parse(lsVal);
+    } catch (e) {}
+    return defaultVal;
 }
 
 async function dbSet(key, val) {
     try {
         await localforage.setItem(key, val);
     } catch (e) {
-        console.error(`localForage setItem error [${key}]:`, e);
+        console.warn(`localForage setItem error, fallback to localStorage [${key}]:`, e);
     }
+    try {
+        localStorage.setItem(key, JSON.stringify(val));
+    } catch (e) {}
 }
 
 // 產生遞增與唯一 ID Helper
@@ -236,6 +261,16 @@ function checkScheduleConflict(classId, courseId, classroomId, weekday, period, 
 
 // --- 初始化載入 ---
 document.addEventListener("DOMContentLoaded", () => {
+    // 檢查是否有匯入成功後需要顯示的提示
+    try {
+        const savedToast = localStorage.getItem("mst_import_toast");
+        if (savedToast) {
+            localStorage.removeItem("mst_import_toast");
+            const parsed = JSON.parse(savedToast);
+            showToast(parsed.message, parsed.type || "success");
+        }
+    } catch(e) {}
+
     contextMenu = document.getElementById("custom-context-menu");
     menuItemGoto = document.getElementById("menu-item-goto");
     loadAllData().then(() => {
@@ -558,6 +593,32 @@ function setupEventListeners() {
         draggedCourseId = null;
         draggedScheduleId = null;
     });
+
+    // 全域拖放 (Drag & Drop) .json 系統備份檔支援
+    window.addEventListener("dragover", (e) => {
+        // 避免攔截課表內部的課程拖曳
+        if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes("Files")) {
+            e.preventDefault();
+        }
+    });
+
+    window.addEventListener("drop", async (e) => {
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            if (file.name.toLowerCase().endsWith(".json")) {
+                e.preventDefault();
+                e.stopPropagation();
+                try {
+                    const text = await file.text();
+                    openImportSystemModal(text, file.name);
+                    showToast(`已載入拖曳檔案【${file.name}】，請檢視預覽後點選「確認覆蓋並匯入」。`, "info");
+                } catch (err) {
+                    console.error("拖放讀取 JSON 失敗：", err);
+                    showToast("讀取檔案失敗：" + err.message, "error");
+                }
+            }
+        }
+    });
 }
 
 // --- 載入所有基礎資料 (localForage 讀取) ---
@@ -760,7 +821,7 @@ function populateSelectors() {
 
 // --- 更新上方班級顯示狀態與設定預設教室 ---
 function updateClassDisplay() {
-    const activeClass = classes.find(c => c.id === selectedClassId);
+    const activeClass = classes.find(c => String(c.id) === String(selectedClassId));
 
     document.querySelectorAll(".dropzone").forEach(cell => {
         cell.classList.remove("not-available");
@@ -804,8 +865,8 @@ function updateClassScheduleHighlights() {
 function renderCourses() {
     // 若當前選取的課程不屬於該班級，強制清除選取狀態
     if (selectedCourseId) {
-        const selCourse = courses.find(c => c.id === selectedCourseId);
-        if (!selCourse || selCourse.class_id !== selectedClassId) {
+        const selCourse = courses.find(c => String(c.id) === String(selectedCourseId));
+        if (!selCourse || String(selCourse.class_id) !== String(selectedClassId)) {
             clearSelectedCourse();
         }
     }
@@ -822,7 +883,7 @@ function renderCourses() {
         return;
     }
 
-    const classCourses = courses.filter(c => c.class_id === selectedClassId);
+    const classCourses = courses.filter(c => String(c.class_id) === String(selectedClassId));
 
     if (classCourses.length === 0) {
         coursePool.innerHTML = `
@@ -838,17 +899,17 @@ function renderCourses() {
     classCourses.forEach(c => {
         const card = document.createElement("div");
         card.className = `course-card week-${(c.week_type || 'EVERY').toLowerCase()}`;
-        if (selectedCourseId === c.id) {
+        if (String(selectedCourseId) === String(c.id)) {
             card.classList.add("active");
         }
         card.draggable = true;
 
-        const teacher = teachers.find(t => t.id === c.teacher_id);
+        const teacher = teachers.find(t => String(t.id) === String(c.teacher_id));
         const teacherName = teacher ? teacher.name : "未知教師";
         const teacherShortName = teacherName.split(" ")[0]; 
 
         const scheduledPeriods = schedules
-            .filter(s => s.course_id === c.id && s.class_id === selectedClassId)
+            .filter(s => String(s.course_id) === String(c.id) && String(s.class_id) === String(selectedClassId))
             .reduce((sum, s) => sum + (s.week_type === "EVERY" ? 1.0 : 0.5), 0);
         const required = c.required_periods || 0;
         const remaining = required - scheduledPeriods;
@@ -882,7 +943,7 @@ function renderCourses() {
         });
 
         card.addEventListener("click", () => {
-            if (selectedCourseId === c.id) {
+            if (String(selectedCourseId) === String(c.id)) {
                 selectedCourseId = null;
                 card.classList.remove("active");
                 updateClassScheduleHighlights();
@@ -902,7 +963,7 @@ function renderCourses() {
 
     const pendingCount = classCourses.filter(c => {
         const scheduledPeriods = schedules
-            .filter(sc => sc.course_id === c.id && sc.class_id === selectedClassId)
+            .filter(sc => String(sc.course_id) === String(c.id) && String(sc.class_id) === String(selectedClassId))
             .reduce((sum, sc) => sum + (sc.week_type === "EVERY" ? 1.0 : 0.5), 0);
         return scheduledPeriods < (c.required_periods || 0);
     }).length;
@@ -918,7 +979,7 @@ async function renderSchedules() {
     if (!selectedClassId) return;
 
     const classSchedules = schedules
-        .filter(s => s.class_id === selectedClassId)
+        .filter(s => String(s.class_id) === String(selectedClassId))
         .sort((a, b) => {
             if (a.week_type === "ODD" && b.week_type === "EVEN") return -1;
             if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
@@ -929,16 +990,16 @@ async function renderSchedules() {
         const cell = document.querySelector(`#class-schedule-view .dropzone[data-weekday="${s.weekday}"][data-period="${s.period}"]`);
         if (!cell) return;
 
-        const course = courses.find(c => c.id === s.course_id);
-        const classroom = classrooms.find(cr => cr.id === s.classroom_id);
-        const teacher = course ? teachers.find(t => t.id === course.teacher_id) : null;
+        const course = courses.find(c => String(c.id) === String(s.course_id));
+        const classroom = classrooms.find(cr => String(cr.id) === String(s.classroom_id));
+        const teacher = course ? teachers.find(t => String(t.id) === String(course.teacher_id)) : null;
 
         if (!course) return;
 
         const div = document.createElement("div");
         div.className = `placed-course week-${(s.week_type || 'EVERY').toLowerCase()}`;
         div.dataset.courseId = s.course_id;
-        if (selectedCourseId && s.course_id === selectedCourseId) {
+        if (selectedCourseId && String(s.course_id) === String(selectedCourseId)) {
             div.classList.add("highlight-matched");
         }
         div.draggable = true;
@@ -1451,7 +1512,7 @@ function renderTeacherSchedule() {
         return;
     }
 
-    const teacher = teachers.find(t => t.id === teacherId);
+    const teacher = teachers.find(t => String(t.id) === String(teacherId));
     if (!teacher) return;
 
     currentTeacherDisplay.textContent = teacher.name;
@@ -1465,8 +1526,8 @@ function renderTeacherSchedule() {
     }
 
     const teacherSchedules = schedules.filter(s => {
-        const c = courses.find(course => course.id === s.course_id);
-        return c && c.teacher_id === teacherId;
+        const c = courses.find(course => String(course.id) === String(s.course_id));
+        return c && String(c.teacher_id) === String(teacherId);
     });
 
     const totalPeriods = teacherSchedules.reduce((sum, s) => sum + (s.week_type === "EVERY" ? 1.0 : 0.5), 0);
@@ -1474,7 +1535,7 @@ function renderTeacherSchedule() {
 
     const gradesSet = new Set();
     teacherSchedules.forEach(s => {
-        const cls = classes.find(c => c.id === s.class_id);
+        const cls = classes.find(c => String(c.id) === String(s.class_id));
         if (cls) {
             gradesSet.add(cls.grade);
         }
@@ -1502,9 +1563,9 @@ function renderTeacherSchedule() {
                 });
 
             scheds.forEach(sched => {
-                const cls = classes.find(c => c.id === sched.class_id);
-                const course = courses.find(c => c.id === sched.course_id);
-                const room = classrooms.find(r => r.id === sched.classroom_id);
+                const cls = classes.find(c => String(c.id) === String(sched.class_id));
+                const course = courses.find(c => String(c.id) === String(sched.course_id));
+                const room = classrooms.find(r => String(r.id) === String(sched.classroom_id));
 
                 const weekType = (sched && sched.week_type) ? sched.week_type.toLowerCase() : "every";
                 const weekBadge = sched && sched.week_type === "ODD" ? '<span class="week-tag inline">[單]</span> ' :
@@ -1763,7 +1824,19 @@ async function processCSVImport(text, type) {
         showToast("CSV 檔案內容為空！", "error");
         return;
     }
-    const clean = text.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "");
+    const clean = text.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "").trim();
+    
+    // 智慧防呆：若使用者將 JSON 系統備份檔案丟進 CSV 匯入按鈕
+    if (clean.startsWith("{") && (clean.includes('"classes"') || clean.includes('"courses"') || clean.includes('"teachers"') || clean.includes('"periods"'))) {
+        try {
+            openImportSystemModal(clean, "系統備份檔 (JSON)");
+            showToast("偵測到您上傳的是 JSON 系統備份檔，已為您開啟系統備份匯入視窗，請檢視預覽後點選「確認覆蓋並匯入」。", "info");
+            return;
+        } catch (e) {
+            console.warn("嘗試自動解析 JSON 備份失敗，依一般 CSV 流程處理：", e);
+        }
+    }
+
     const lines = clean.split(/\r?\n/)
         .map(l => l.replace(/[\uFEFF\uFFFE\u200B]/g, ""))
         .filter(l => l.trim() && !l.trim().startsWith("#"));
@@ -2405,6 +2478,159 @@ async function deleteClass(classId) {
     await loadAllData();
 }
 
+// --- 核心共用：全站 JSON 系統備份匯入 ---
+async function importSystemJsonData(jsonPayload) {
+    if (!jsonPayload || typeof jsonPayload !== "object") {
+        throw new Error("無效的 JSON 格式或資料為空");
+    }
+
+    // 1. config 或 periods
+    if (jsonPayload.config) {
+        await dbSet("mst_config", jsonPayload.config);
+    } else if (jsonPayload.periods) {
+        await dbSet("mst_config", { periods: jsonPayload.periods });
+    }
+
+    let classCount = 0, roomCount = 0, teacherCount = 0, courseCount = 0, schedCount = 0;
+
+    // 2. classes
+    if (jsonPayload.classes && Array.isArray(jsonPayload.classes)) {
+        await dbSet("mst_classes", jsonPayload.classes);
+        classCount = jsonPayload.classes.length;
+    }
+
+    // 3. classrooms
+    if (jsonPayload.classrooms && Array.isArray(jsonPayload.classrooms)) {
+        await dbSet("mst_classrooms", jsonPayload.classrooms);
+        roomCount = jsonPayload.classrooms.length;
+    }
+
+    // 4. teachers
+    if (jsonPayload.teachers && Array.isArray(jsonPayload.teachers)) {
+        await dbSet("mst_teachers", jsonPayload.teachers);
+        teacherCount = jsonPayload.teachers.length;
+    }
+
+    // 5. courses
+    if (jsonPayload.courses && Array.isArray(jsonPayload.courses)) {
+        await dbSet("mst_courses", jsonPayload.courses);
+        courseCount = jsonPayload.courses.length;
+    }
+
+    // 6. schedules
+    if (jsonPayload.schedules && Array.isArray(jsonPayload.schedules)) {
+        await dbSet("mst_schedules", jsonPayload.schedules);
+        schedCount = jsonPayload.schedules.length;
+    }
+
+    const summaryMsg = `🎉 系統資料匯入成功！共載入 ${classCount} 個班級、${teacherCount} 位教師、${courseCount} 門課程、${schedCount} 筆排課。`;
+    try {
+        localStorage.setItem("mst_import_toast", JSON.stringify({ message: summaryMsg, type: "success" }));
+    } catch(e) {}
+
+    showToast(summaryMsg, "success");
+    setTimeout(() => window.location.reload(), 1000);
+}
+
+// --- 系統匯入 Modal 管理 ---
+function openImportSystemModal(initialText = "", fileName = "") {
+    if (!modalImportSystem) return;
+    modalImportSystem.classList.remove("hidden");
+    
+    if (initialText) {
+        if (fileName) {
+            switchImportTab("file");
+            if (selectedFileName) selectedFileName.textContent = `📄 ${fileName}`;
+        } else {
+            switchImportTab("text");
+            if (importJsonTextarea) importJsonTextarea.value = initialText;
+        }
+        parseAndPreviewJson(initialText);
+    } else {
+        switchImportTab("file");
+        resetImportModalState();
+    }
+}
+
+function closeImportSystemModal() {
+    if (!modalImportSystem) return;
+    modalImportSystem.classList.add("hidden");
+    resetImportModalState();
+}
+
+function switchImportTab(mode) {
+    if (mode === "file") {
+        tabBtnImportFile?.classList.add("active");
+        tabBtnImportText?.classList.remove("active");
+        importPaneFile?.classList.remove("hidden");
+        importPaneText?.classList.add("hidden");
+    } else {
+        tabBtnImportFile?.classList.remove("active");
+        tabBtnImportText?.classList.add("active");
+        importPaneFile?.classList.add("hidden");
+        importPaneText?.classList.remove("hidden");
+    }
+}
+
+function resetImportModalState() {
+    pendingImportPayload = null;
+    if (modalFileInput) modalFileInput.value = "";
+    if (selectedFileName) selectedFileName.textContent = "尚未選擇任何檔案";
+    if (importJsonTextarea) importJsonTextarea.value = "";
+    if (importPreviewBox) importPreviewBox.classList.add("hidden");
+    if (btnConfirmImportAction) btnConfirmImportAction.disabled = true;
+}
+
+function parseAndPreviewJson(rawText) {
+    if (!rawText || !rawText.trim()) {
+        pendingImportPayload = null;
+        if (importPreviewBox) importPreviewBox.classList.add("hidden");
+        if (btnConfirmImportAction) btnConfirmImportAction.disabled = true;
+        return;
+    }
+
+    try {
+        const clean = rawText.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "").trim();
+        const jsonPayload = JSON.parse(clean);
+
+        if (!jsonPayload || typeof jsonPayload !== "object") {
+            throw new Error("JSON 格式不正確或為空物件");
+        }
+
+        const classCount = Array.isArray(jsonPayload.classes) ? jsonPayload.classes.length : (jsonPayload.classes ? Object.keys(jsonPayload.classes).length : 0);
+        const teacherCount = Array.isArray(jsonPayload.teachers) ? jsonPayload.teachers.length : (jsonPayload.teachers ? Object.keys(jsonPayload.teachers).length : 0);
+        const roomCount = Array.isArray(jsonPayload.classrooms) ? jsonPayload.classrooms.length : (jsonPayload.classrooms ? Object.keys(jsonPayload.classrooms).length : 0);
+        const courseCount = Array.isArray(jsonPayload.courses) ? jsonPayload.courses.length : (jsonPayload.courses ? Object.keys(jsonPayload.courses).length : 0);
+        const schedCount = Array.isArray(jsonPayload.schedules) ? jsonPayload.schedules.length : (jsonPayload.schedules ? Object.keys(jsonPayload.schedules).length : 0);
+
+        if (classCount === 0 && teacherCount === 0 && courseCount === 0 && !jsonPayload.config && !jsonPayload.periods) {
+            throw new Error("未在 JSON 中找到班級、教師或課程等有效排課系統資料");
+        }
+
+        pendingImportPayload = jsonPayload;
+
+        if (previewStatsContent) {
+            previewStatsContent.innerHTML = `
+                <div>🏫 班級資料：<strong>${classCount}</strong> 個班級</div>
+                <div>👨‍🏫 教師資料：<strong>${teacherCount}</strong> 位教師</div>
+                <div>🚪 教室資料：<strong>${roomCount}</strong> 間教室</div>
+                <div>📚 課程科目：<strong>${courseCount}</strong> 門課程</div>
+                <div>📅 已排課表：<strong>${schedCount}</strong> 節課</div>
+            `;
+        }
+
+        if (importPreviewBox) importPreviewBox.classList.remove("hidden");
+        if (btnConfirmImportAction) btnConfirmImportAction.disabled = false;
+    } catch (e) {
+        pendingImportPayload = null;
+        if (previewStatsContent) {
+            previewStatsContent.innerHTML = `<span style="color:#ef4444;"><i class="fa-solid fa-circle-xmark"></i> JSON 解析錯誤：${e.message}</span>`;
+        }
+        if (importPreviewBox) importPreviewBox.classList.remove("hidden");
+        if (btnConfirmImportAction) btnConfirmImportAction.disabled = true;
+    }
+}
+
 // --- 系統設定分頁事件綁定 ---
 function setupSettingsListeners() {
     if (formSettingAddClass) {
@@ -2460,81 +2686,103 @@ function setupSettingsListeners() {
         });
     }
 
-    // 3. 匯入全站 JSON
-    if (inputImportSystem) {
-        inputImportSystem.addEventListener("change", async (e) => {
+    // 3. 匯入全站 JSON（點選開啟專屬 Modal 彈窗）
+    if (btnImportSystem) {
+        btnImportSystem.addEventListener("click", () => {
+            openImportSystemModal();
+        });
+    }
+
+    // Modal 內部按鈕綁定
+    if (btnCloseImportModal) {
+        btnCloseImportModal.addEventListener("click", closeImportSystemModal);
+    }
+    if (btnCancelImportModal) {
+        btnCancelImportModal.addEventListener("click", closeImportSystemModal);
+    }
+
+    // Modal 背景點擊關閉
+    if (modalImportSystem) {
+        modalImportSystem.addEventListener("click", (e) => {
+            if (e.target === modalImportSystem) {
+                closeImportSystemModal();
+            }
+        });
+    }
+
+    // 分頁切換
+    if (tabBtnImportFile) {
+        tabBtnImportFile.addEventListener("click", () => switchImportTab("file"));
+    }
+    if (tabBtnImportText) {
+        tabBtnImportText.addEventListener("click", () => switchImportTab("text"));
+    }
+
+    // 檔案選取區點擊
+    if (fileDropArea && modalFileInput) {
+        fileDropArea.addEventListener("click", () => {
+            modalFileInput.click();
+        });
+
+        modalFileInput.addEventListener("change", async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            if (!confirm("警告：匯入資料將覆蓋現有系統中所有資料！\n\n確定要繼續嗎？")) {
-                e.target.value = "";
+            if (selectedFileName) selectedFileName.textContent = `📄 ${file.name}`;
+            try {
+                let text = await file.text();
+                parseAndPreviewJson(text);
+            } catch (err) {
+                showToast("讀取檔案失敗：" + err.message, "error");
+            }
+        });
+
+        // 檔案拖曳進 Drop Area
+        fileDropArea.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            fileDropArea.classList.add("drag-over");
+        });
+        fileDropArea.addEventListener("dragleave", () => {
+            fileDropArea.classList.remove("drag-over");
+        });
+        fileDropArea.addEventListener("drop", async (e) => {
+            e.preventDefault();
+            fileDropArea.classList.remove("drag-over");
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                if (selectedFileName) selectedFileName.textContent = `📄 ${file.name}`;
+                try {
+                    let text = await file.text();
+                    parseAndPreviewJson(text);
+                } catch (err) {
+                    showToast("讀取檔案失敗：" + err.message, "error");
+                }
+            }
+        });
+    }
+
+    // 文字框即時輸入解析
+    if (importJsonTextarea) {
+        importJsonTextarea.addEventListener("input", (e) => {
+            parseAndPreviewJson(e.target.value);
+        });
+    }
+
+    // 確認匯入按鈕點擊
+    if (btnConfirmImportAction) {
+        btnConfirmImportAction.addEventListener("click", async () => {
+            if (!pendingImportPayload) {
+                showToast("尚未載入有效之 JSON 資料！", "error");
                 return;
             }
             try {
-                let textContent = "";
-                // 優先使用標準 UTF-8 讀取 JSON
-                try {
-                    textContent = await file.text();
-                } catch (readErr) {
-                    const buffer = await file.arrayBuffer();
-                    textContent = new TextDecoder("utf-8").decode(buffer);
-                }
-
-                // 去除可能殘留的 UTF-8 BOM 與零寬空格
-                textContent = textContent.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "").trim();
-
-                let jsonPayload;
-                try {
-                    jsonPayload = JSON.parse(textContent);
-                } catch (jsonErr) {
-                    // 若直接 UTF-8 parse 失敗，再嘗試以 readCsvFileAsText 解碼一次
-                    const altText = (await readCsvFileAsText(file)).replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "").trim();
-                    jsonPayload = JSON.parse(altText);
-                }
-
-                if (!jsonPayload || typeof jsonPayload !== "object") {
-                    throw new Error("無效的 JSON 格式或資料為空");
-                }
-
-                // 智慧相容不同 JSON 備份格式：
-                // 1. config 或 periods
-                if (jsonPayload.config) {
-                    await dbSet("mst_config", jsonPayload.config);
-                } else if (jsonPayload.periods) {
-                    await dbSet("mst_config", { periods: jsonPayload.periods });
-                }
-
-                // 2. classes
-                if (jsonPayload.classes && Array.isArray(jsonPayload.classes)) {
-                    await dbSet("mst_classes", jsonPayload.classes);
-                }
-
-                // 3. classrooms
-                if (jsonPayload.classrooms && Array.isArray(jsonPayload.classrooms)) {
-                    await dbSet("mst_classrooms", jsonPayload.classrooms);
-                }
-
-                // 4. teachers
-                if (jsonPayload.teachers && Array.isArray(jsonPayload.teachers)) {
-                    await dbSet("mst_teachers", jsonPayload.teachers);
-                }
-
-                // 5. courses
-                if (jsonPayload.courses && Array.isArray(jsonPayload.courses)) {
-                    await dbSet("mst_courses", jsonPayload.courses);
-                }
-
-                // 6. schedules
-                if (jsonPayload.schedules && Array.isArray(jsonPayload.schedules)) {
-                    await dbSet("mst_schedules", jsonPayload.schedules);
-                }
-
-                showToast("系統資料匯入成功，即將重整頁面", "success");
-                setTimeout(() => window.location.reload(), 1200);
+                btnConfirmImportAction.disabled = true;
+                btnConfirmImportAction.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 匯入處理中...`;
+                await importSystemJsonData(pendingImportPayload);
             } catch (error) {
                 console.error("JSON 匯入失敗：", error);
-                showToast("檔案讀取或匯入失敗：" + error.message, "error");
-            } finally {
-                e.target.value = "";
+                showToast("資料匯入失敗：" + error.message, "error");
+                btnConfirmImportAction.disabled = false;
+                btnConfirmImportAction.innerHTML = `<i class="fa-solid fa-check"></i> 確認覆蓋並匯入`;
             }
         });
     }
@@ -3526,7 +3774,7 @@ function renderMatrixTeacherList() {
 
         item.addEventListener("click", () => {
             // 切換選取
-            if (matrixSelectedTeacherId === t.id) {
+            if (String(matrixSelectedTeacherId) === String(t.id)) {
                 matrixSelectedTeacherId = null;
             } else {
                 matrixSelectedTeacherId = t.id;
@@ -3535,7 +3783,7 @@ function renderMatrixTeacherList() {
             updateMatrixSelectedUI();
             // 重新高亮
             listEl.querySelectorAll(".matrix-teacher-item").forEach(el => {
-                el.classList.toggle("selected", parseInt(el.dataset.teacherId) === matrixSelectedTeacherId);
+                el.classList.toggle("selected", String(el.dataset.teacherId) === String(matrixSelectedTeacherId));
             });
         });
 
@@ -3552,7 +3800,7 @@ function updateMatrixSelectedUI() {
     if (!infoEl || !nameEl) return;
 
     if (matrixSelectedTeacherId) {
-        const t = teachers.find(t => t.id === matrixSelectedTeacherId);
+        const t = teachers.find(t => String(t.id) === String(matrixSelectedTeacherId));
         nameEl.textContent = t ? `已選取：${t.name}` : "未知教師";
         infoEl.style.display = "flex";
     } else {
@@ -3569,13 +3817,13 @@ async function handleMatrixCellClick(classId, subject, tdEl) {
         return;
     }
 
-    const teacher = teachers.find(t => t.id === matrixSelectedTeacherId);
+    const teacher = teachers.find(t => String(t.id) === String(matrixSelectedTeacherId));
     if (!teacher) return;
 
     // 查找此班級+科目是否已有課程
-    const existingCourse = courses.find(c => c.class_id === classId && c.name === subject);
+    const existingCourse = courses.find(c => String(c.class_id) === String(classId) && c.name === subject);
 
-    if (existingCourse && existingCourse.teacher_id === matrixSelectedTeacherId) {
+    if (existingCourse && String(existingCourse.teacher_id) === String(matrixSelectedTeacherId)) {
         // 已經是同一位老師了，不做事
         showToast(`「${subject}」已經指派給 ${teacher.name}`, "info");
         return;
@@ -3603,7 +3851,7 @@ async function handleMatrixCellClick(classId, subject, tdEl) {
         syncClassTutors();
 
         // 效果呈現
-        const className = classes.find(c => c.id === classId)?.name || "";
+        const className = classes.find(c => String(c.id) === String(classId))?.name || "";
         tdEl.classList.remove("empty");
         tdEl.classList.add("has-teacher", "just-assigned");
         tdEl.title = `${className} - ${subject} (任課教師：${teacher.name}，${existingCourse ? existingCourse.required_periods : 1}節)`;
@@ -3867,7 +4115,7 @@ function renderClassroomSchedule() {
         return;
     }
 
-    const classroom = classrooms.find(r => r.id === classroomId);
+    const classroom = classrooms.find(r => String(r.id) === String(classroomId));
     if (!classroom) return;
 
     currentClassroomDisplay.textContent = classroom.name;
@@ -3876,7 +4124,7 @@ function renderClassroomSchedule() {
     classroomTypeBadge.style.display = "inline-block";
 
     // 篩選出此教室的排課紀錄
-    const roomSchedules = schedules.filter(s => s.classroom_id === classroomId);
+    const roomSchedules = schedules.filter(s => String(s.classroom_id) === String(classroomId));
 
     const totalPeriods = roomSchedules.reduce((sum, s) => sum + (s.week_type === "EVERY" ? 1.0 : 0.5), 0);
     if (classroomStatPeriods) classroomStatPeriods.textContent = totalPeriods;
@@ -3896,9 +4144,9 @@ function renderClassroomSchedule() {
                 });
 
             scheds.forEach(sched => {
-                const cls = classes.find(c => c.id === sched.class_id);
-                const course = courses.find(c => c.id === sched.course_id);
-                const teacher = course ? teachers.find(t => t.id === course.teacher_id) : null;
+                const cls = classes.find(c => String(c.id) === String(sched.class_id));
+                const course = courses.find(c => String(c.id) === String(sched.course_id));
+                const teacher = course ? teachers.find(t => String(t.id) === String(course.teacher_id)) : null;
 
                 const weekType = (sched && sched.week_type) ? sched.week_type.toLowerCase() : "every";
                 const weekBadge = sched && sched.week_type === "ODD" ? '<span class="week-tag inline">[單]</span> ' :
