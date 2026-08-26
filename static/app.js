@@ -451,7 +451,7 @@ function setupEventListeners() {
     selectClass.addEventListener("change", (e) => {
         selectedClassId = e.target.value ? parseInt(e.target.value) : null;
         clearSelectedCourse();
-        updateClassDisplay();
+        updateClassDisplay(true);
         renderSchedules();
         renderCourses(); 
     });
@@ -748,6 +748,7 @@ async function loadAllData() {
 // --- 填充下拉選單 ---
 function populateSelectors() {
     const prevClassId = selectClass ? selectClass.value : null;
+    const prevClassroomId = selectClassroom ? selectClassroom.value : null;
     const prevClassroomView = selectClassroomView ? selectClassroomView.value : null;
     const prevTeacherClassroom = teacherSelectClassroom ? teacherSelectClassroom.value : null;
 
@@ -807,20 +808,28 @@ function populateSelectors() {
     }
 
     const defaultCr = classrooms.find(cr => cr.name === "班級教室");
-    if (defaultCr) {
-        selectClassroom.value = defaultCr.id;
-        if (teacherSelectClassroom) {
-            if (prevTeacherClassroom && classrooms.some(cr => String(cr.id) === String(prevTeacherClassroom))) {
-                teacherSelectClassroom.value = prevTeacherClassroom;
-            } else {
-                teacherSelectClassroom.value = defaultCr.id;
-            }
+    const currentClass = classes.find(c => String(c.id) === String(selectedClassId));
+    const classDefaultCrId = currentClass?.default_classroom_id || defaultCr?.id;
+
+    if (selectClassroom) {
+        if (prevClassroomId && classrooms.some(cr => String(cr.id) === String(prevClassroomId))) {
+            selectClassroom.value = prevClassroomId;
+        } else if (classDefaultCrId) {
+            selectClassroom.value = classDefaultCrId;
+        }
+    }
+
+    if (teacherSelectClassroom) {
+        if (prevTeacherClassroom && classrooms.some(cr => String(cr.id) === String(prevTeacherClassroom))) {
+            teacherSelectClassroom.value = prevTeacherClassroom;
+        } else if (defaultCr) {
+            teacherSelectClassroom.value = defaultCr.id;
         }
     }
 }
 
 // --- 更新上方班級顯示狀態與設定預設教室 ---
-function updateClassDisplay() {
+function updateClassDisplay(shouldResetClassroom = false) {
     const activeClass = classes.find(c => String(c.id) === String(selectedClassId));
 
     document.querySelectorAll(".dropzone").forEach(cell => {
@@ -832,7 +841,7 @@ function updateClassDisplay() {
         classGradeBadge.textContent = `${activeClass.grade} 年級`;
         classGradeBadge.style.display = "inline-block";
 
-        if (activeClass.default_classroom_id) {
+        if (shouldResetClassroom && activeClass.default_classroom_id && selectClassroom) {
             selectClassroom.value = activeClass.default_classroom_id;
         }
     } else {
@@ -1306,15 +1315,17 @@ function showToast(msg, type = "info") {
 }
 
 // 自動將授課教室切換為該科目設定的預設教室類型
-function autoSwitchClassroomForCourse(course) {
-    if (!selectClassroom || !course) return;
+function autoSwitchClassroomForCourse(course, isTeacherTab = false) {
+    const targetSelect = isTeacherTab ? teacherSelectClassroom : selectClassroom;
+    if (!targetSelect || !course) return;
 
     let targetRoomName = course.classroom_name;
-    const currentClass = classes.find(c => c.id === selectedClassId);
+    const targetClassId = isTeacherTab ? course.class_id : selectedClassId;
+    const currentClass = classes.find(c => c.id === targetClassId);
 
     if (!targetRoomName || targetRoomName === "班級教室" || targetRoomName === "普通") {
         if (currentClass && currentClass.default_classroom_id) {
-            selectClassroom.value = currentClass.default_classroom_id;
+            targetSelect.value = currentClass.default_classroom_id;
             return;
         }
         targetRoomName = "班級教室";
@@ -1322,13 +1333,13 @@ function autoSwitchClassroomForCourse(course) {
 
     const matchedRoom = classrooms.find(cr => cr.name === targetRoomName);
     if (matchedRoom) {
-        selectClassroom.value = matchedRoom.id;
+        targetSelect.value = matchedRoom.id;
     } else {
         const typeRoom = classrooms.find(cr => cr.type === targetRoomName);
         if (typeRoom) {
-            selectClassroom.value = typeRoom.id;
+            targetSelect.value = typeRoom.id;
         } else if (currentClass && currentClass.default_classroom_id) {
-            selectClassroom.value = currentClass.default_classroom_id;
+            targetSelect.value = currentClass.default_classroom_id;
         }
     }
 }
