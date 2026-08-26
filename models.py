@@ -63,7 +63,7 @@ class Course(Base):
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
     class_id = Column(Integer, ForeignKey("classes.id"), nullable=True)  # 新增班級外鍵
     classroom_name = Column(String, default="班級教室")  # 預設上課需要的教室名稱
-    week_type = Column(String, default="EVERY")  # EVERY, ODD (單週), EVEN (雙週)
+    week_type = Column(String, default="EVERY")  # EVERY, ODD (單週), EVEN (雙週), GROUP (分組)
     required_periods = Column(Float, default=1.0)  # 每週應排課節數（規劃節數）
     paired_course_id = Column(Integer, ForeignKey("courses.id"), nullable=True)  # 單雙週配對課程的 ID
 
@@ -85,7 +85,7 @@ class Schedule(Base):
     classroom_id = Column(Integer, ForeignKey("classrooms.id"), nullable=False)
     weekday = Column(Integer, nullable=False)  # 1 (週一) ~ 5 (週五)
     period = Column(Integer, nullable=False)   # 1 ~ 8 (第 1 節 ~ 第 8 節)
-    week_type = Column(String, default="EVERY")  # EVERY, ODD, EVEN
+    week_type = Column(String, default="EVERY")  # EVERY, ODD, EVEN, GROUP
 
     # Relationships
     class_ = relationship("Class", back_populates="schedules")

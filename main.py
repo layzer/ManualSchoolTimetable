@@ -368,19 +368,20 @@ def create_schedule(schedule: schemas.ScheduleCreate, db: Session = Depends(get_
             detail={"message": "排課存在衝突，無法新增", "conflicts": conflicts}
         )
         
-    # 實作「直接取代原本課程」功能：只取代週次衝突的舊排課
-    existing_schedules = db.query(models.Schedule).filter(
-        models.Schedule.class_id == schedule.class_id,
-        models.Schedule.weekday == schedule.weekday,
-        models.Schedule.period == schedule.period
-    ).all()
-    
-    for existing in existing_schedules:
-        # 若有衝突 (不是 ODD 碰 EVEN)，則取代舊有課程
-        if scheduler.check_week_type_conflict(schedule.week_type, existing.week_type):
-            db.delete(existing)
-    
-    db.flush()
+    # 實作「直接取代原本課程」功能：只取代衝突的舊排課（若排入 GROUP 分組課程，則不取代既有課程，直接並存）
+    if schedule.week_type != "GROUP":
+        existing_schedules = db.query(models.Schedule).filter(
+            models.Schedule.class_id == schedule.class_id,
+            models.Schedule.weekday == schedule.weekday,
+            models.Schedule.period == schedule.period
+        ).all()
+        
+        for existing in existing_schedules:
+            # 若不是 ODD 碰 EVEN，且既有課程不是分組或新課為全覆蓋，則取代舊有課程
+            if scheduler.check_week_type_conflict(schedule.week_type, existing.week_type):
+                db.delete(existing)
+        
+        db.flush()
         
     db_schedule = models.Schedule(**schedule.model_dump())
     db.add(db_schedule)
@@ -433,18 +434,19 @@ def update_schedule(
             detail={"message": "修改課表存在衝突，無法更新", "conflicts": conflicts}
         )
         
-    # 實作「直接取代原本課程」功能：只取代週次衝突的舊排課
-    existing_schedules = db.query(models.Schedule).filter(
-        models.Schedule.class_id == schedule.class_id,
-        models.Schedule.weekday == schedule.weekday,
-        models.Schedule.period == schedule.period,
-        models.Schedule.id != schedule_id
-    ).all()
-    
-    for existing in existing_schedules:
-        if scheduler.check_week_type_conflict(schedule.week_type, existing.week_type):
-            db.delete(existing)
-    db.flush()
+    # 實作「直接取代原本課程」功能：只取代衝突的舊排課（若排入 GROUP 分組課程，則不取代既有課程）
+    if schedule.week_type != "GROUP":
+        existing_schedules = db.query(models.Schedule).filter(
+            models.Schedule.class_id == schedule.class_id,
+            models.Schedule.weekday == schedule.weekday,
+            models.Schedule.period == schedule.period,
+            models.Schedule.id != schedule_id
+        ).all()
+        
+        for existing in existing_schedules:
+            if scheduler.check_week_type_conflict(schedule.week_type, existing.week_type):
+                db.delete(existing)
+        db.flush()
         
     for key, value in schedule.model_dump().items():
         setattr(db_schedule, key, value)

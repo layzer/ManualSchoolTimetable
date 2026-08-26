@@ -468,6 +468,34 @@ function setupEventListeners() {
         renderCourses(); 
     });
 
+    const btnNextClass = document.getElementById("btn-next-class");
+    if (btnNextClass) {
+        btnNextClass.addEventListener("click", () => {
+            if (!selectClass) return;
+            const validOptions = Array.from(selectClass.options).filter(opt => opt.value !== "");
+            if (validOptions.length === 0) {
+                showToast("目前無可切換的班級！", "info");
+                return;
+            }
+
+            const currentVal = selectClass.value;
+            const currentIndex = validOptions.findIndex(opt => opt.value === currentVal);
+
+            let nextOption = validOptions[0];
+            if (currentIndex !== -1) {
+                const nextIndex = (currentIndex + 1) % validOptions.length;
+                nextOption = validOptions[nextIndex];
+            }
+
+            selectClass.value = nextOption.value;
+            selectClass.dispatchEvent(new Event("change"));
+
+            const targetClass = classes.find(c => String(c.id) === String(nextOption.value));
+            const className = targetClass ? targetClass.name : nextOption.textContent;
+            showToast(`已切換至「${className}」`, "info");
+        });
+    }
+
     if (selectTeacher) {
         selectTeacher.addEventListener("change", () => {
             teacherSelectedCourseId = null; 
@@ -851,8 +879,6 @@ function updateClassDisplay(shouldResetClassroom = false) {
     if (activeClass) {
         currentClassDisplay.textContent = activeClass.name;
         classGradeBadge.textContent = `${activeClass.grade} 年級`;
-        classGradeBadge.style.display = "inline-block";
-
         if (shouldResetClassroom && activeClass.default_classroom_id && selectClassroom) {
             selectClassroom.value = activeClass.default_classroom_id;
         }
@@ -931,7 +957,7 @@ function renderCourses() {
 
         const scheduledPeriods = schedules
             .filter(s => String(s.course_id) === String(c.id) && String(s.class_id) === String(selectedClassId))
-            .reduce((sum, s) => sum + (s.week_type === "EVERY" ? 1.0 : 0.5), 0);
+            .reduce((sum, s) => sum + (s.week_type === "ODD" || s.week_type === "EVEN" ? 0.5 : 1.0), 0);
         const required = c.required_periods || 0;
         const remaining = required - scheduledPeriods;
         const isDone = remaining <= 0;
@@ -985,7 +1011,7 @@ function renderCourses() {
     const pendingCount = classCourses.filter(c => {
         const scheduledPeriods = schedules
             .filter(sc => String(sc.course_id) === String(c.id) && String(sc.class_id) === String(selectedClassId))
-            .reduce((sum, sc) => sum + (sc.week_type === "EVERY" ? 1.0 : 0.5), 0);
+            .reduce((sum, sc) => sum + (sc.week_type === "ODD" || sc.week_type === "EVEN" ? 0.5 : 1.0), 0);
         return scheduledPeriods < (c.required_periods || 0);
     }).length;
     unscheduledCount.textContent = pendingCount;
@@ -994,6 +1020,7 @@ function renderCourses() {
 // --- 渲染已排課表 (Main Grid) ---
 async function renderSchedules() {
     document.querySelectorAll("#class-schedule-view .dropzone").forEach(cell => {
+        cell.classList.remove("has-group-split");
         cell.querySelectorAll(".placed-course").forEach(p => p.remove());
     });
 
@@ -1006,6 +1033,26 @@ async function renderSchedules() {
             if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
             return 0;
         });
+
+    // 檢查各時段是否有分組排課或多門課程需左右分組
+    const slotMap = {};
+    classSchedules.forEach(s => {
+        const key = `${s.weekday}-${s.period}`;
+        if (!slotMap[key]) slotMap[key] = [];
+        slotMap[key].push(s);
+    });
+
+    Object.entries(slotMap).forEach(([key, list]) => {
+        const [w, p] = key.split("-");
+        const cell = document.querySelector(`#class-schedule-view .dropzone[data-weekday="${w}"][data-period="${p}"]`);
+        if (cell) {
+            const hasGroup = list.some(s => s.week_type === "GROUP");
+            const isAlternateOnly = list.length === 2 && list.some(s => s.week_type === "ODD") && list.some(s => s.week_type === "EVEN");
+            if (hasGroup || (list.length > 1 && !isAlternateOnly)) {
+                cell.classList.add("has-group-split");
+            }
+        }
+    });
 
     classSchedules.forEach(s => {
         const cell = document.querySelector(`#class-schedule-view .dropzone[data-weekday="${s.weekday}"][data-period="${s.period}"]`);
@@ -1030,14 +1077,14 @@ async function renderSchedules() {
 
         div.innerHTML = `
             <div class="placed-header">
-                <span class="placed-name">${weekBadge}${course.name}</span>
+                <span class="placed-name" title="${course.name}">${weekBadge}${course.name}</span>
                 <button class="btn-delete-placed" title="取消排課">
                     <i class="fa-solid fa-square-xmark"></i>
                 </button>
             </div>
             <div class="placed-footer">
-                <span>${teacher ? teacher.name.split(" ")[0] : ""}</span>
-                <span>${classroom ? classroom.name : "班級教室"}</span>
+                <span title="${teacher ? teacher.name : ''}">${teacher ? teacher.name.split(" ")[0] : ""}</span>
+                <span title="${classroom ? classroom.name : '班級教室'}">${classroom ? classroom.name : "班級教室"}</span>
             </div>
         `;
 
@@ -1161,13 +1208,34 @@ async function handleCourseDrop(weekday, period, classroomId, cell) {
         return;
     }
 
-    schedules = schedules.filter(s => {
-        if (draggedScheduleId && s.id === draggedScheduleId) return false;
-        if (s.class_id === selectedClassId && s.weekday === weekday && s.period === period) {
-            return !checkWeekTypeConflict(weekType, s.week_type || "EVERY");
-        }
-        return true;
-    });
+    // 取得該時段既有的排課資訊以供提示
+    const existingSlotCourses = schedules
+        .filter(s => s.class_id === selectedClassId && s.weekday === weekday && s.period === period && (!draggedScheduleId || s.id !== draggedScheduleId))
+        .map(s => {
+            const c = courses.find(item => item.id === s.course_id);
+            const t = c ? teachers.find(item => item.id === c.teacher_id) : null;
+            const cName = c ? c.name : "未知課程";
+            const tName = t ? t.name.split(" ")[0] : "";
+            const typeStr = s.week_type === "GROUP" ? "分組" : (s.week_type === "ODD" ? "單週" : (s.week_type === "EVEN" ? "雙週" : "每週"));
+            return `${cName}${tName ? ' - ' + tName : ''}(${typeStr})`;
+        });
+
+    if (weekType === "GROUP") {
+        // 分組排課：不刪除該班該時段的既有課程，只在拖曳調整時移除自身原位置
+        schedules = schedules.filter(s => {
+            if (draggedScheduleId && s.id === draggedScheduleId) return false;
+            return true;
+        });
+    } else {
+        // 每週/單雙週排課：依照週次衝突過濾舊有排課
+        schedules = schedules.filter(s => {
+            if (draggedScheduleId && s.id === draggedScheduleId) return false;
+            if (s.class_id === selectedClassId && s.weekday === weekday && s.period === period) {
+                return !checkWeekTypeConflict(weekType, s.week_type || "EVERY");
+            }
+            return true;
+        });
+    }
 
     if (draggedScheduleId) {
         schedules.push({
@@ -1200,14 +1268,20 @@ async function handleCourseDrop(weekday, period, classroomId, cell) {
     const className = curClass ? curClass.name : "該班級";
     const courseName = curCourse ? curCourse.name : "該課程";
     
-    showToast(draggedScheduleId ? "課表調整成功！" : "排課成功！", "success");
-    log(
-        draggedScheduleId
-            ? `課表調整成功！已將「${className}」的「${courseName}」調整至週 ${weekday} 第 ${period} 節。`
-            : `排課成功！已將「${className}」的「${courseName}」排至週 ${weekday} 第 ${period} 節。`,
-        "success",
-        JSON.parse(JSON.stringify(schedules))
-    );
+    if (weekType === "GROUP" && existingSlotCourses.length > 0) {
+        const existInfo = existingSlotCourses.join("、");
+        showToast(`ℹ️ 該時段已有【${existInfo}】，已成功加入分組課程！`, "info");
+        log(`分組排課成功！已將「${className}」的「${courseName}」以分組模式加入週 ${weekday} 第 ${period} 節（此節既有：${existInfo}）。`, "success", JSON.parse(JSON.stringify(schedules)));
+    } else {
+        showToast(draggedScheduleId ? "課表調整成功！" : "排課成功！", "success");
+        log(
+            draggedScheduleId
+                ? `課表調整成功！已將「${className}」的「${courseName}」調整至週 ${weekday} 第 ${period} 節。`
+                : `排課成功！已將「${className}」的「${courseName}」排至週 ${weekday} 第 ${period} 節。`,
+            "success",
+            JSON.parse(JSON.stringify(schedules))
+        );
+    }
 }
 
 // --- 處理 Click-to-Place 排課行為 ---
@@ -1244,12 +1318,28 @@ async function handleCourseClickPlace(courseId, weekday, period, classroomId, ce
         return;
     }
 
-    schedules = schedules.filter(s => {
-        if (s.class_id === selectedClassId && s.weekday === weekday && s.period === period) {
-            return !checkWeekTypeConflict(weekType, s.week_type || "EVERY");
-        }
-        return true;
-    });
+    // 取得該時段既有的排課資訊以供提示
+    const existingSlotCourses = schedules
+        .filter(s => s.class_id === selectedClassId && s.weekday === weekday && s.period === period)
+        .map(s => {
+            const c = courses.find(item => item.id === s.course_id);
+            const t = c ? teachers.find(item => item.id === c.teacher_id) : null;
+            const cName = c ? c.name : "未知課程";
+            const tName = t ? t.name.split(" ")[0] : "";
+            const typeStr = s.week_type === "GROUP" ? "分組" : (s.week_type === "ODD" ? "單週" : (s.week_type === "EVEN" ? "雙週" : "每週"));
+            return `${cName}${tName ? ' - ' + tName : ''}(${typeStr})`;
+        });
+
+    if (weekType === "GROUP") {
+        // 分組排課不刪除該班該時段的既有課程
+    } else {
+        schedules = schedules.filter(s => {
+            if (s.class_id === selectedClassId && s.weekday === weekday && s.period === period) {
+                return !checkWeekTypeConflict(weekType, s.week_type || "EVERY");
+            }
+            return true;
+        });
+    }
 
     schedules.push({
         id: getNextId(schedules),
@@ -1268,8 +1358,14 @@ async function handleCourseClickPlace(courseId, weekday, period, classroomId, ce
     const className = curClass ? curClass.name : "該班級";
     const courseName = targetCourse.name;
 
-    showToast("點選排課成功！", "success");
-    log(`排課成功！已將「${className}」的「${courseName}」排入週 ${weekday} 第 ${period} 節。`, "success", JSON.parse(JSON.stringify(schedules)));
+    if (weekType === "GROUP" && existingSlotCourses.length > 0) {
+        const existInfo = existingSlotCourses.join("、");
+        showToast(`ℹ️ 該時段已有【${existInfo}】，已成功加入分組課程！`, "info");
+        log(`分組點選排課成功！已將「${className}」的「${courseName}」以分組模式排入週 ${weekday} 第 ${period} 節（此節既有：${existInfo}）。`, "success", JSON.parse(JSON.stringify(schedules)));
+    } else {
+        showToast("點選排課成功！", "success");
+        log(`排課成功！已將「${className}」的「${courseName}」排入週 ${weekday} 第 ${period} 節。`, "success", JSON.parse(JSON.stringify(schedules)));
+    }
 }
 
 // --- 刪除課表 ---
@@ -1442,36 +1538,49 @@ async function handleTeacherCourseClickPlace(classId, courseId, weekday, period,
         return;
     }
 
-    // 2. 檢查班級在該時段是否已有其他衝突的課程 (班級衝堂防呆)
-    const classConflict = schedules.find(s =>
-        s.class_id === classId &&
-        s.weekday === weekday &&
-        s.period === period &&
-        checkWeekTypeConflict(weekType, s.week_type || "EVERY")
-    );
+    // 2. 檢查班級在該時段是否已有其他衝突的課程 (若非分組課程則進行班級衝堂防呆)
+    const existingSlotCourses = schedules
+        .filter(s => s.class_id === classId && s.weekday === weekday && s.period === period)
+        .map(s => {
+            const c = courses.find(item => item.id === s.course_id);
+            const t = c ? teachers.find(item => item.id === c.teacher_id) : null;
+            const cName = c ? c.name : "未知課程";
+            const tName = t ? t.name.split(" ")[0] : "";
+            const typeStr = s.week_type === "GROUP" ? "分組" : (s.week_type === "ODD" ? "單週" : (s.week_type === "EVEN" ? "雙週" : "每週"));
+            return `${cName}${tName ? ' - ' + tName : ''}(${typeStr})`;
+        });
 
-    if (classConflict && classConflict.course_id !== courseId) {
-        const existingCourse = courses.find(c => c.id === classConflict.course_id);
-        const courseName = existingCourse ? existingCourse.name : "其他課程";
-        const existingTeacher = existingCourse ? teachers.find(t => t.id === existingCourse.teacher_id) : null;
-        const teacherName = existingTeacher ? existingTeacher.name : "";
-        const teacherStr = teacherName ? ` (${teacherName} 老師)` : "";
+    if (weekType !== "GROUP") {
+        const classConflict = schedules.find(s =>
+            s.class_id === classId &&
+            s.weekday === weekday &&
+            s.period === period &&
+            checkWeekTypeConflict(weekType, s.week_type || "EVERY")
+        );
 
-        showToast(`班級衝堂：該班級在此時段已有課程「${courseName}」${teacherStr}，請先至班級課表取消或調整！`, "error");
-        teacherLog(`排課失敗：班級衝堂，此時段已排定「${courseName}」${teacherStr}`, "error");
+        if (classConflict && classConflict.course_id !== courseId) {
+            const existingCourse = courses.find(c => c.id === classConflict.course_id);
+            const courseName = existingCourse ? existingCourse.name : "其他課程";
+            const existingTeacher = existingCourse ? teachers.find(t => t.id === existingCourse.teacher_id) : null;
+            const teacherName = existingTeacher ? existingTeacher.name : "";
+            const teacherStr = teacherName ? ` (${teacherName} 老師)` : "";
 
-        // 觸發紅震動與發光動畫
-        cell.classList.add("grid-cell-conflict");
-        setTimeout(() => cell.classList.remove("grid-cell-conflict"), 1500);
-        return;
-    }
+            showToast(`班級衝堂：該班級在此時段已有課程「${courseName}」${teacherStr}，請先至班級課表取消或調整！`, "error");
+            teacherLog(`排課失敗：班級衝堂，此時段已排定「${courseName}」${teacherStr}`, "error");
 
-    schedules = schedules.filter(s => {
-        if (s.class_id === classId && s.weekday === weekday && s.period === period) {
-            return !checkWeekTypeConflict(weekType, s.week_type || "EVERY");
+            // 觸發紅震動與發光動畫
+            cell.classList.add("grid-cell-conflict");
+            setTimeout(() => cell.classList.remove("grid-cell-conflict"), 1500);
+            return;
         }
-        return true;
-    });
+
+        schedules = schedules.filter(s => {
+            if (s.class_id === classId && s.weekday === weekday && s.period === period) {
+                return !checkWeekTypeConflict(weekType, s.week_type || "EVERY");
+            }
+            return true;
+        });
+    }
 
     schedules.push({
         id: getNextId(schedules),
@@ -1491,8 +1600,14 @@ async function handleTeacherCourseClickPlace(classId, courseId, weekday, period,
     const className = curClass ? curClass.name : "該班級";
     const courseName = curCourse ? curCourse.name : "該課程";
 
-    showToast("點選排課成功！", "success");
-    teacherLog(`排課成功！已將「${className}」的「${courseName}」排入週 ${weekday} 第 ${period} 節。`, "success", JSON.parse(JSON.stringify(schedules)));
+    if (weekType === "GROUP" && existingSlotCourses.length > 0) {
+        const existInfo = existingSlotCourses.join("、");
+        showToast(`ℹ️ 該班級此節已有【${existInfo}】，已成功加入分組課程！`, "info");
+        teacherLog(`分組排課成功！已將「${className}」的「${courseName}」以分組模式排入週 ${weekday} 第 ${period} 節（此節既有：${existInfo}）。`, "success", JSON.parse(JSON.stringify(schedules)));
+    } else {
+        showToast("點選排課成功！", "success");
+        teacherLog(`排課成功！已將「${className}」的「${courseName}」排入週 ${weekday} 第 ${period} 節。`, "success", JSON.parse(JSON.stringify(schedules)));
+    }
 }
 
 // --- 填充 Tab 2 教師下拉選單 ---
@@ -1551,7 +1666,7 @@ function renderTeacherSchedule() {
         return c && String(c.teacher_id) === String(teacherId);
     });
 
-    const totalPeriods = teacherSchedules.reduce((sum, s) => sum + (s.week_type === "EVERY" ? 1.0 : 0.5), 0);
+    const totalPeriods = teacherSchedules.reduce((sum, s) => sum + (s.week_type === "ODD" || s.week_type === "EVEN" ? 0.5 : 1.0), 0);
     teacherStatPeriods.textContent = totalPeriods;
 
     const gradesSet = new Set();
@@ -1590,7 +1705,8 @@ function renderTeacherSchedule() {
 
                 const weekType = (sched && sched.week_type) ? sched.week_type.toLowerCase() : "every";
                 const weekBadge = sched && sched.week_type === "ODD" ? '<span class="week-tag inline">[單]</span> ' :
-                    sched && sched.week_type === "EVEN" ? '<span class="week-tag inline">[雙]</span> ' : '';
+                    sched && sched.week_type === "EVEN" ? '<span class="week-tag inline">[雙]</span> ' :
+                    sched && sched.week_type === "GROUP" ? '<span class="week-tag inline" style="color: #c4b5fd;">[組]</span> ' : '';
 
                 const div = document.createElement("div");
                 div.className = `placed-course week-${weekType}`;
@@ -2016,7 +2132,7 @@ function renderTeacherSummary() {
         const tdPeriods = document.createElement("td");
         const teacherCourses = courses.filter(c => c.teacher_id === t.id);
         const plannedTotal = teacherCourses.reduce((sum, c) => sum + (c.required_periods || 0), 0);
-        const scheduledCount = teacherSchedules.reduce((sum, s) => sum + (s.week_type === "EVERY" ? 1.0 : 0.5), 0);
+        const scheduledCount = teacherSchedules.reduce((sum, s) => sum + (s.week_type === "ODD" || s.week_type === "EVEN" ? 0.5 : 1.0), 0);
         const allDone = plannedTotal > 0 && scheduledCount >= plannedTotal;
         tdPeriods.innerHTML = `
             <span class="stat-value" style="font-size: 15px; color: var(--accent-cyan); font-weight:700;">${scheduledCount}</span>
@@ -2041,7 +2157,7 @@ function renderTeacherSummary() {
                 const cls = classes.find(classObj => classObj.id === c.class_id);
                 const cScheduled = schedules
                     .filter(s => s.course_id === c.id && s.class_id === c.class_id)
-                    .reduce((sum, s) => sum + (s.week_type === "EVERY" ? 1.0 : 0.5), 0);
+                    .reduce((sum, s) => sum + (s.week_type === "ODD" || s.week_type === "EVEN" ? 0.5 : 1.0), 0);
                 const cRequired = c.required_periods || 0;
                 const li = document.createElement("li");
                 li.title = `已排 ${cScheduled} / 需排 ${cRequired} 節`;
@@ -2241,7 +2357,7 @@ function renderCurriculumView() {
 
         const scheduledCount = schedules
             .filter(s => s.course_id === c.id && s.class_id === classId)
-            .reduce((sum, s) => sum + (s.week_type === "EVERY" ? 1.0 : 0.5), 0);
+            .reduce((sum, s) => sum + (s.week_type === "ODD" || s.week_type === "EVEN" ? 0.5 : 1.0), 0);
         totalScheduled += scheduledCount;
 
         const isDone = scheduledCount >= required && required > 0;
@@ -2920,6 +3036,7 @@ function exportAllClassesCsv() {
                         let text = course.name;
                         if (s.week_type === "ODD") text += "(單)";
                         else if (s.week_type === "EVEN") text += "(雙)";
+                        else if (s.week_type === "GROUP") text += "(組)";
                         cellParts.push(text);
                     }
                 });
@@ -2957,6 +3074,7 @@ function exportAllClassesCsv() {
                         let text = `${course.name}(${cls.name})`;
                         if (s.week_type === "ODD") text += "(單)";
                         else if (s.week_type === "EVEN") text += "(雙)";
+                        else if (s.week_type === "GROUP") text += "(組)";
                         cellParts.push(text);
                     }
                 });
@@ -4169,7 +4287,8 @@ function renderClassroomSchedule() {
 
                 const weekType = (sched && sched.week_type) ? sched.week_type.toLowerCase() : "every";
                 const weekBadge = sched && sched.week_type === "ODD" ? '<span class="week-tag inline">[單]</span> ' :
-                    sched && sched.week_type === "EVEN" ? '<span class="week-tag inline">[雙]</span> ' : '';
+                    sched && sched.week_type === "EVEN" ? '<span class="week-tag inline">[雙]</span> ' :
+                    sched && sched.week_type === "GROUP" ? '<span class="week-tag inline" style="color: #c4b5fd;">[組]</span> ' : '';
 
                 const div = document.createElement("div");
                 div.className = `placed-course week-${weekType}`;

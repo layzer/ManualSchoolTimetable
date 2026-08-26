@@ -56,7 +56,7 @@ class CourseBase(BaseModel):
     teacher_id: int
     class_id: Optional[int] = None
     classroom_name: str = "班級教室"
-    week_type: str = "EVERY"  # EVERY, ODD, EVEN
+    week_type: str = "EVERY"  # EVERY, ODD, EVEN, GROUP
     required_periods: float = 1.0  # 每週應排課節數（規劃節數）
     paired_course_id: Optional[int] = None
 
@@ -77,7 +77,7 @@ class ScheduleBase(BaseModel):
     classroom_id: Optional[int] = None
     weekday: int = Field(..., ge=1, le=5)
     period: int = Field(..., ge=1, le=8)
-    week_type: str = "EVERY"  # EVERY, ODD, EVEN
+    week_type: str = "EVERY"  # EVERY, ODD, EVEN, GROUP
 
 class ScheduleCreate(ScheduleBase):
     pass

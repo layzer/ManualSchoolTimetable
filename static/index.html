@@ -13,7 +13,7 @@
         rel="stylesheet">
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20260826_fix_context_menu_position">
+    <link rel="stylesheet" href="style.css?v=20260826_group_split_flex">
     <!-- html2pdf.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -96,22 +96,27 @@
                 <div class="sidebar-section">
                     <h3><i class="fa-solid fa-calendar-week"></i> 選擇排課週別</h3>
                     <p class="helper-text">設定此節排課的週次屬性：</p>
-                    <div class="week-type-selector" style="display: flex; gap: 8px;">
+                    <div class="week-type-selector" style="display: flex; gap: 6px;">
                         <label class="custom-radio"
-                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px 4px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
                             <input type="radio" name="placing-week-type-class" value="EVERY" checked
                                 style="cursor: pointer;">
                             <span style="font-size: 13px;">每週</span>
                         </label>
                         <label class="custom-radio"
-                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px 4px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
                             <input type="radio" name="placing-week-type-class" value="ODD" style="cursor: pointer;">
                             <span style="font-size: 13px; color: var(--accent-cyan);">單週</span>
                         </label>
                         <label class="custom-radio"
-                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px 4px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
                             <input type="radio" name="placing-week-type-class" value="EVEN" style="cursor: pointer;">
                             <span style="font-size: 13px; color: var(--accent-pink);">雙週</span>
+                        </label>
+                        <label class="custom-radio"
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px 4px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <input type="radio" name="placing-week-type-class" value="GROUP" style="cursor: pointer;">
+                            <span style="font-size: 13px; color: #a78bfa; font-weight: 500;">分組</span>
                         </label>
                     </div>
                 </div>
@@ -168,6 +173,10 @@
                     </div>
                     <div class="legend">
                         <span class="legend-item"><span class="color-dot weekly"></span>已排定課程</span>
+                        <button id="btn-next-class" class="btn-next-class" title="切換至選單的下一個班級">
+                            <span>下一班</span>
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -286,22 +295,27 @@
                 <div class="sidebar-section">
                     <h3><i class="fa-solid fa-calendar-week"></i> 選擇排課週別</h3>
                     <p class="helper-text">設定此節排課的週次屬性：</p>
-                    <div class="week-type-selector" style="display: flex; gap: 8px;">
+                    <div class="week-type-selector" style="display: flex; gap: 6px;">
                         <label class="custom-radio"
-                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px 4px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
                             <input type="radio" name="placing-week-type-teacher" value="EVERY" checked
                                 style="cursor: pointer;">
                             <span style="font-size: 13px;">每週</span>
                         </label>
                         <label class="custom-radio"
-                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px 4px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
                             <input type="radio" name="placing-week-type-teacher" value="ODD" style="cursor: pointer;">
                             <span style="font-size: 13px; color: var(--accent-cyan);">單週</span>
                         </label>
                         <label class="custom-radio"
-                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px 4px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
                             <input type="radio" name="placing-week-type-teacher" value="EVEN" style="cursor: pointer;">
                             <span style="font-size: 13px; color: var(--accent-pink);">雙週</span>
+                        </label>
+                        <label class="custom-radio"
+                            style="flex: 1; text-align: center; background: rgba(255,255,255,0.05); padding: 8px 4px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            <input type="radio" name="placing-week-type-teacher" value="GROUP" style="cursor: pointer;">
+                            <span style="font-size: 13px; color: #a78bfa; font-weight: 500;">分組</span>
                         </label>
                     </div>
                 </div>
@@ -888,7 +902,7 @@
         </div>
     </div>
 
-    <script src="app.js?v=20260826_fix_context_menu_position"></script>
+    <script src="app.js?v=20260826_remove_group_tag_class_view"></script>
 </body>
 
 </html>
