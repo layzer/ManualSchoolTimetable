@@ -3303,7 +3303,7 @@ function exportCourseDatabaseTsv() {
 
 // --- PDF 匯出輔助函式：動態生成班級課表網格 HTML ---
 function generateClassGridHtml(classId, className, subtitle) {
-    const classSchedules = schedules.filter(s => s.class_id === classId);
+    const classSchedules = schedules.filter(s => String(s.class_id) === String(classId));
 
     let tableHtml = `
         <table>
@@ -3347,7 +3347,7 @@ function generateClassGridHtml(classId, className, subtitle) {
             tableHtml += `<tr><td>${p.name}</td>`;
             for (let d = 1; d <= 5; d++) {
                 const scheds = classSchedules
-                    .filter(s => s.weekday === d && s.period === parseInt(p.id))
+                    .filter(s => s.weekday === d && String(s.period) === String(p.id))
                     .sort((a, b) => {
                         if (a.week_type === "ODD" && b.week_type === "EVEN") return -1;
                         if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
@@ -3357,18 +3357,18 @@ function generateClassGridHtml(classId, className, subtitle) {
                 if (scheds.length > 0) {
                     let itemsHtml = "";
                     scheds.forEach(s => {
-                        const course = courses.find(c => c.id === s.course_id);
-                        const teacher = course ? teachers.find(t => t.id === course.teacher_id) : null;
-                        const classroom = classrooms.find(cr => cr.id === s.classroom_id);
+                        const course = courses.find(c => String(c.id) === String(s.course_id));
+                        const teacher = course ? teachers.find(t => String(t.id) === String(course.teacher_id)) : null;
+                        const classroom = classrooms.find(cr => String(cr.id) === String(s.classroom_id));
                         if (course) {
                             const weekTag = s.week_type === "ODD" ? '[單] ' : s.week_type === "EVEN" ? '[雙] ' : '';
-                            const roomText = classroom && classroom.name !== "班級教室" ? ` (${classroom.name})` : '';
+                            const roomName = classroom ? classroom.name : '班級教室';
                             const weekClass = (s.week_type === "ODD" || s.week_type === "EVEN") ? 'alternate-week' : 'every-week';
                             itemsHtml += `
                                 <div class="placed-course ${weekClass}">
-                                    <div class="placed-name">${weekTag}${course.name}${roomText}</div>
+                                    <div class="placed-name">${weekTag}${course.name}</div>
                                     <div class="placed-footer">
-                                        <span>${className}</span>
+                                        <span>${roomName}</span>
                                         <span>${teacher ? teacher.name : ''}</span>
                                     </div>
                                 </div>
@@ -3442,7 +3442,7 @@ function generateRoomGridHtml(roomId, roomName, subtitle) {
             tableHtml += `<tr><td>${p.name}</td>`;
             for (let d = 1; d <= 5; d++) {
                 const scheds = schedules
-                    .filter(s => s.classroom_id === roomId && s.weekday === d && s.period === parseInt(p.id))
+                    .filter(s => String(s.classroom_id) === String(roomId) && s.weekday === d && String(s.period) === String(p.id))
                     .sort((a, b) => {
                         if (a.week_type === "ODD" && b.week_type === "EVEN") return -1;
                         if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
@@ -3453,9 +3453,9 @@ function generateRoomGridHtml(roomId, roomName, subtitle) {
                 if (scheds.length > 0) {
                     let itemsHtml = "";
                     scheds.forEach(s => {
-                        const course = courses.find(c => c.id === s.course_id);
-                        const cls = classes.find(c => c.id === s.class_id);
-                        const teacher = course ? teachers.find(t => t.id === course.teacher_id) : null;
+                        const course = courses.find(c => String(c.id) === String(s.course_id));
+                        const cls = classes.find(c => String(c.id) === String(s.class_id));
+                        const teacher = course ? teachers.find(t => String(t.id) === String(course.teacher_id)) : null;
                         if (course) {
                             const weekTag = s.week_type === "ODD" ? '[單] ' : s.week_type === "EVEN" ? '[雙] ' : '';
                             const weekClass = (s.week_type === "ODD" || s.week_type === "EVEN") ? 'alternate-week' : 'every-week';
@@ -3495,9 +3495,9 @@ function generateRoomGridHtml(roomId, roomName, subtitle) {
 
 // --- PDF 匯出輔助函式：動態生成教師課表網格 HTML ---
 function generateTeacherGridHtml(teacherId, teacherName, subtitle, teacherObj) {
-    const teacherCourses = courses.filter(c => c.teacher_id === teacherId);
-    const teacherCourseIds = teacherCourses.map(c => c.id);
-    const teacherSchedules = schedules.filter(s => teacherCourseIds.includes(s.course_id));
+    const teacherCourses = courses.filter(c => String(c.teacher_id) === String(teacherId));
+    const teacherCourseIds = teacherCourses.map(c => String(c.id));
+    const teacherSchedules = schedules.filter(s => teacherCourseIds.includes(String(s.course_id)));
     const unavailableSlots = (teacherObj && teacherObj.unavailable_slots) || [];
 
     let tableHtml = `
@@ -3548,7 +3548,7 @@ function generateTeacherGridHtml(teacherId, teacherName, subtitle, teacherObj) {
                     tableHtml += `<td class="unavailable-cell">不排課</td>`;
                 } else {
                     const scheds = teacherSchedules
-                        .filter(s => s.weekday === d && s.period === parseInt(p.id))
+                        .filter(s => s.weekday === d && String(s.period) === String(p.id))
                         .sort((a, b) => {
                             if (a.week_type === "ODD" && b.week_type === "EVEN") return -1;
                             if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
@@ -3559,9 +3559,9 @@ function generateTeacherGridHtml(teacherId, teacherName, subtitle, teacherObj) {
                     if (scheds.length > 0) {
                         let itemsHtml = "";
                         scheds.forEach(s => {
-                            const course = courses.find(c => c.id === s.course_id);
-                            const cls = classes.find(c => c.id === s.class_id);
-                            const classroom = classrooms.find(cr => cr.id === s.classroom_id);
+                            const course = courses.find(c => String(c.id) === String(s.course_id));
+                            const cls = classes.find(c => String(c.id) === String(s.class_id));
+                            const classroom = classrooms.find(cr => String(cr.id) === String(s.classroom_id));
                             if (course) {
                                 const weekTag = s.week_type === "ODD" ? '[單] ' : s.week_type === "EVEN" ? '[雙] ' : '';
                                 const roomText = classroom && classroom.name !== "班級教室" ? ` (${classroom.name})` : '';
@@ -3648,43 +3648,75 @@ function setupTabListeners() {
 }
 
 async function exportAllClassesPdf() {
+    if (!classes || classes.length === 0) {
+        showToast("目前無班級資料可供匯出", "warning");
+        return;
+    }
+
     showToast("正在建立班級與專科教室 PDF（共多頁），請稍候...", "info");
 
-    const wrapper = document.createElement("div");
-    wrapper.style.cssText = "position:fixed;top:0;left:-9999px;width:794px;";
-    document.body.appendChild(wrapper);
+    const pagesData = [];
 
     // 1. 班級頁面
     classes.forEach(c => {
-        const tutor = teachers.find(t => t.id === c.tutor_id)?.name || "無";
+        const tutor = teachers.find(t => String(t.id) === String(c.tutor_id))?.name || "無";
         const subtitle = `導師：${tutor}`;
-        wrapper.innerHTML += generateClassGridHtml(c.id, c.name, subtitle);
+        pagesData.push({
+            title: `${c.name} 課表`,
+            html: generateClassGridHtml(c.id, c.name, subtitle)
+        });
     });
 
     // 2. 專科教室頁面
     const specialRooms = classrooms.filter(cr => cr.type !== "普通" && cr.name !== "班級教室");
     specialRooms.forEach(cr => {
         const subtitle = `教室類型：${cr.type} 專用教室`;
-        wrapper.innerHTML += generateRoomGridHtml(cr.id, cr.name, subtitle);
+        pagesData.push({
+            title: `${cr.name} 課表`,
+            html: generateRoomGridHtml(cr.id, cr.name, subtitle)
+        });
     });
 
-    // 等瀏覽器完成佈局
-    await new Promise(r => requestAnimationFrame(r));
+    if (pagesData.length === 0) {
+        showToast("無可供匯出的課表內容", "warning");
+        return;
+    }
+
+    // 建立單頁獨立渲染容器（固定在 (0, 0)，防止 offsetTop 累積造成截圖空白）
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "position: fixed; top: 0; left: 0; width: 794px; min-height: 1110px; z-index: -9999; opacity: 0; pointer-events: none; background: #ffffff;";
+    document.body.appendChild(wrapper);
 
     try {
         const pdf = new window.jspdf.jsPDF("p", "mm", "a4");
-        const pages = wrapper.querySelectorAll(".pdf-page");
-        for (let i = 0; i < pages.length; i++) {
-            showToast(`正在渲染第 ${i + 1}/${pages.length} 頁...`, "info");
-            const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, logging: false });
+
+        for (let i = 0; i < pagesData.length; i++) {
+            showToast(`正在渲染第 ${i + 1}/${pagesData.length} 頁 (${pagesData[i].title})...`, "info");
+            wrapper.innerHTML = pagesData[i].html;
+            const pageEl = wrapper.firstElementChild;
+
+            // 等待一幀確保佈局完成
+            await new Promise(r => requestAnimationFrame(r));
+
+            const canvas = await html2canvas(pageEl, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: 794,
+                windowHeight: 1110
+            });
             const imgData = canvas.toDataURL("image/jpeg", 0.98);
             if (i > 0) pdf.addPage();
             pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
         }
+
         showToast("正在產生 PDF 檔案...", "info");
         pdf.save("全體班級與專科教室總課表.pdf");
         showToast("全體班級與專科教室 PDF 匯出完成！", "success");
     } catch (e) {
+        console.error("PDF 匯出失敗：", e);
         showToast("PDF 匯出失敗：" + e.message, "error");
     } finally {
         if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
@@ -3693,35 +3725,64 @@ async function exportAllClassesPdf() {
 
 
 async function exportAllTeachersPdf() {
+    if (!teachers || teachers.length === 0) {
+        showToast("目前無教師資料可供匯出", "warning");
+        return;
+    }
+
     showToast("正在建立教師個人課表 PDF（共多頁），請稍候...", "info");
 
-    const wrapper = document.createElement("div");
-    wrapper.style.cssText = "position:fixed;top:0;left:-9999px;width:794px;";
-    document.body.appendChild(wrapper);
+    const pagesData = [];
 
     teachers.forEach(t => {
         const tutorInfo = t.is_tutor ? "導師" : "專任教師";
         const sub = `身份：${tutorInfo}`;
-        wrapper.innerHTML += generateTeacherGridHtml(t.id, t.name, sub, t);
+        pagesData.push({
+            title: `${t.name} 老師課表`,
+            html: generateTeacherGridHtml(t.id, t.name, sub, t)
+        });
     });
 
-    // 等瀏覽器完成佈局
-    await new Promise(r => requestAnimationFrame(r));
+    if (pagesData.length === 0) {
+        showToast("無可供匯出的教師課表內容", "warning");
+        return;
+    }
+
+    // 建立單頁獨立渲染容器（固定在 (0, 0)，防止 offsetTop 累積造成截圖空白）
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "position: fixed; top: 0; left: 0; width: 794px; min-height: 1110px; z-index: -9999; opacity: 0; pointer-events: none; background: #ffffff;";
+    document.body.appendChild(wrapper);
 
     try {
         const pdf = new window.jspdf.jsPDF("p", "mm", "a4");
-        const pages = wrapper.querySelectorAll(".pdf-page");
-        for (let i = 0; i < pages.length; i++) {
-            showToast(`正在渲染第 ${i + 1}/${pages.length} 頁...`, "info");
-            const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, logging: false });
+
+        for (let i = 0; i < pagesData.length; i++) {
+            showToast(`正在渲染第 ${i + 1}/${pagesData.length} 頁 (${pagesData[i].title})...`, "info");
+            wrapper.innerHTML = pagesData[i].html;
+            const pageEl = wrapper.firstElementChild;
+
+            // 等待一幀確保佈局完成
+            await new Promise(r => requestAnimationFrame(r));
+
+            const canvas = await html2canvas(pageEl, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: 794,
+                windowHeight: 1110
+            });
             const imgData = canvas.toDataURL("image/jpeg", 0.98);
             if (i > 0) pdf.addPage();
             pdf.addImage(imgData, "JPEG", 0, 0, 210, 297);
         }
+
         showToast("正在產生 PDF 檔案...", "info");
         pdf.save("全體教師總課表.pdf");
         showToast("全體教師 PDF 匯出完成！", "success");
     } catch (e) {
+        console.error("PDF 匯出失敗：", e);
         showToast("PDF 匯出失敗：" + e.message, "error");
     } finally {
         if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);

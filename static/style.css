@@ -2008,7 +2008,9 @@ body {
 .pdf-page-body table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
     color: #1e293b;
+    box-sizing: border-box;
 }
 
 .pdf-page-body th {
@@ -2018,6 +2020,8 @@ body {
     font-size: 13px;
     background: #f1f5f9 !important;
     font-weight: 600;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .pdf-page-body td {
@@ -2027,6 +2031,8 @@ body {
     font-size: 13px;
     background: #ffffff !important;
     height: 84px;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .pdf-page-body .pdf-cell-container {
