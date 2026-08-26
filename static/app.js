@@ -389,6 +389,33 @@ async function rollbackToSnapshot(snapshot, timeStr) {
     }
 }
 
+// --- 自訂右鍵選單定位輔助函式 ---
+function showContextMenu(e) {
+    if (!contextMenu) return;
+    contextMenu.classList.remove("hidden");
+
+    // 取得選單當前尺寸
+    const rect = contextMenu.getBoundingClientRect();
+    const menuWidth = rect.width || 220;
+    const menuHeight = rect.height || 60;
+
+    // 以視窗 (viewport) clientX / clientY 為基準，精準定位在滑鼠游標旁且不受捲軸影響
+    let x = e.clientX;
+    let y = e.clientY;
+
+    // 防止右側超出視窗邊界
+    if (x + menuWidth > window.innerWidth) {
+        x = Math.max(10, window.innerWidth - menuWidth - 10);
+    }
+    // 防止下方超出視窗邊界
+    if (y + menuHeight > window.innerHeight) {
+        y = Math.max(10, window.innerHeight - menuHeight - 10);
+    }
+
+    contextMenu.style.left = `${x}px`;
+    contextMenu.style.top = `${y}px`;
+}
+
 // 輔助函式：為日誌項目綁定課表快照與右鍵選單
 function attachSnapshotToLogEntry(div, snapshot, timeStr, msg) {
     if (!snapshot || !Array.isArray(snapshot)) return;
@@ -418,22 +445,7 @@ function attachSnapshotToLogEntry(div, snapshot, timeStr, msg) {
             };
         }
 
-        // 計算彈出位置，防止超出螢幕邊界
-        const menuWidth = 220;
-        const menuHeight = 50;
-        let left = e.pageX;
-        let top = e.pageY;
-
-        if (left + menuWidth > window.innerWidth) {
-            left = window.innerWidth - menuWidth - 10;
-        }
-        if (top + menuHeight > window.innerHeight) {
-            top = window.innerHeight - menuHeight - 10;
-        }
-
-        contextMenu.style.left = `${left}px`;
-        contextMenu.style.top = `${top}px`;
-        contextMenu.classList.remove("hidden");
+        showContextMenu(e);
     });
 }
 
@@ -1083,9 +1095,7 @@ async function renderSchedules() {
                     contextMenu.classList.add("hidden");
                 };
 
-                contextMenu.style.left = `${e.pageX}px`;
-                contextMenu.style.top = `${e.pageY}px`;
-                contextMenu.classList.remove("hidden");
+                showContextMenu(e);
             }
         });
 
@@ -1640,9 +1650,7 @@ function renderTeacherSchedule() {
                         };
                     }
 
-                    contextMenu.style.left = `${e.pageX}px`;
-                    contextMenu.style.top = `${e.pageY}px`;
-                    contextMenu.classList.remove("hidden");
+                    showContextMenu(e);
                 });
 
                 cell.appendChild(div);
@@ -4240,9 +4248,7 @@ function renderClassroomSchedule() {
                         };
                     }
 
-                    contextMenu.style.left = `${e.pageX}px`;
-                    contextMenu.style.top = `${e.pageY}px`;
-                    contextMenu.classList.remove("hidden");
+                    showContextMenu(e);
                 });
 
                 cell.appendChild(div);

@@ -1810,7 +1810,7 @@ body {
 
 /* --- 自訂右鍵選單 (Context Menu) 樣式 --- */
 .custom-context-menu {
-    position: absolute;
+    position: fixed;
     background: rgba(30, 41, 59, 0.95);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
