@@ -132,7 +132,7 @@ async function dbGet(key, defaultVal) {
     try {
         const lsVal = localStorage.getItem(key);
         if (lsVal !== null) return JSON.parse(lsVal);
-    } catch (e) {}
+    } catch (e) { }
     return defaultVal;
 }
 
@@ -144,7 +144,7 @@ async function dbSet(key, val) {
     }
     try {
         localStorage.setItem(key, JSON.stringify(val));
-    } catch (e) {}
+    } catch (e) { }
 }
 
 // 產生遞增與唯一 ID Helper
@@ -269,7 +269,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const parsed = JSON.parse(savedToast);
             showToast(parsed.message, parsed.type || "success");
         }
-    } catch(e) {}
+    } catch (e) { }
 
     contextMenu = document.getElementById("custom-context-menu");
     menuItemGoto = document.getElementById("menu-item-goto");
@@ -283,9 +283,9 @@ document.addEventListener("DOMContentLoaded", () => {
         setupFormAddCourseListener();
         setupCurriculumFormListener();
         setupSettingsListeners();
-        setupCSVImports(); 
+        setupCSVImports();
         setupConfigEditor();
-        setupCourseMatrixListeners(); 
+        setupCourseMatrixListeners();
     });
 });
 
@@ -322,7 +322,7 @@ function generateGrid() {
             tdRest.innerText = p.type === "LUNCH" ? "☕ 午餐時間" : (p.type === "NAP" ? "💤 午休時間" : "休息時間");
             tr.appendChild(tdRest);
             gridBody.appendChild(tr);
-            return; 
+            return;
         }
 
         tdPeriod.innerHTML = `${p.name}`;
@@ -465,7 +465,7 @@ function setupEventListeners() {
         clearSelectedCourse();
         updateClassDisplay(true);
         renderSchedules();
-        renderCourses(); 
+        renderCourses();
     });
 
     const btnNextClass = document.getElementById("btn-next-class");
@@ -498,7 +498,7 @@ function setupEventListeners() {
 
     if (selectTeacher) {
         selectTeacher.addEventListener("change", () => {
-            teacherSelectedCourseId = null; 
+            teacherSelectedCourseId = null;
             renderTeacherSchedule();
             renderTeacherCourses(selectTeacher.value ? parseInt(selectTeacher.value) : null);
         });
@@ -598,7 +598,7 @@ function setupEventListeners() {
     gridBody.addEventListener("dragover", (e) => {
         const cell = e.target.closest(".dropzone");
         if (cell && !cell.classList.contains("not-available")) {
-            e.preventDefault(); 
+            e.preventDefault();
             cell.classList.add("drag-over");
         }
     });
@@ -953,7 +953,7 @@ function renderCourses() {
 
         const teacher = teachers.find(t => String(t.id) === String(c.teacher_id));
         const teacherName = teacher ? teacher.name : "未知教師";
-        const teacherShortName = teacherName.split(" ")[0]; 
+        const teacherShortName = teacherName.split(" ")[0];
 
         const scheduledPeriods = schedules
             .filter(s => String(s.course_id) === String(c.id) && String(s.class_id) === String(selectedClassId))
@@ -1102,7 +1102,7 @@ async function renderSchedules() {
         div.querySelector(".btn-delete-placed").addEventListener("mousedown", async (e) => {
             e.stopPropagation();
             e.preventDefault();
-            
+
             ignoreNextClickCell = cell;
             setTimeout(() => {
                 if (ignoreNextClickCell === cell) ignoreNextClickCell = null;
@@ -1262,12 +1262,12 @@ async function handleCourseDrop(weekday, period, classroomId, cell) {
 
     await dbSet("mst_schedules", schedules);
     await loadAllData();
-    
+
     const curClass = classes.find(c => c.id === selectedClassId);
     const curCourse = courses.find(c => c.id === targetCourseId);
     const className = curClass ? curClass.name : "該班級";
     const courseName = curCourse ? curCourse.name : "該課程";
-    
+
     if (weekType === "GROUP" && existingSlotCourses.length > 0) {
         const existInfo = existingSlotCourses.join("、");
         showToast(`ℹ️ 該時段已有【${existInfo}】，已成功加入分組課程！`, "info");
@@ -1706,7 +1706,7 @@ function renderTeacherSchedule() {
                 const weekType = (sched && sched.week_type) ? sched.week_type.toLowerCase() : "every";
                 const weekBadge = sched && sched.week_type === "ODD" ? '<span class="week-tag inline">[單]</span> ' :
                     sched && sched.week_type === "EVEN" ? '<span class="week-tag inline">[雙]</span> ' :
-                    sched && sched.week_type === "GROUP" ? '<span class="week-tag inline" style="color: #c4b5fd;">[組]</span> ' : '';
+                        sched && sched.week_type === "GROUP" ? '<span class="week-tag inline" style="color: #c4b5fd;">[組]</span> ' : '';
 
                 const div = document.createElement("div");
                 div.className = `placed-course week-${weekType}`;
@@ -1726,7 +1726,7 @@ function renderTeacherSchedule() {
                 div.querySelector(".btn-delete-placed").addEventListener("mousedown", async (e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    
+
                     ignoreNextClickCell = cell;
                     setTimeout(() => {
                         if (ignoreNextClickCell === cell) ignoreNextClickCell = null;
@@ -1864,7 +1864,7 @@ async function readCsvFileAsText(file) {
     // 2. 無 BOM 時，使用品質評分機制 (UTF-8 vs Big5)
     let textUtf8 = null;
     let textBig5 = null;
-    
+
     try {
         const utf8Strict = new TextDecoder('utf-8', { fatal: true });
         textUtf8 = utf8Strict.decode(bytes);
@@ -1960,7 +1960,7 @@ async function processCSVImport(text, type) {
         return;
     }
     const clean = text.replace(/^[\uFEFF\uFFFE\u200B\u0000]+/, "").trim();
-    
+
     // 智慧防呆：若使用者將 JSON 系統備份檔案丟進 CSV 匯入按鈕
     if (clean.startsWith("{") && (clean.includes('"classes"') || clean.includes('"courses"') || clean.includes('"teachers"') || clean.includes('"periods"'))) {
         try {
@@ -1975,7 +1975,7 @@ async function processCSVImport(text, type) {
     const lines = clean.split(/\r?\n/)
         .map(l => l.replace(/[\uFEFF\uFFFE\u200B]/g, ""))
         .filter(l => l.trim() && !l.trim().startsWith("#"));
-        
+
     if (lines.length === 0) {
         showToast("CSV 檔案沒有有效資料！", "error");
         return;
@@ -2060,7 +2060,7 @@ async function processCSVImport(text, type) {
 
             const periodsCount = parseFloat(cols[2]) || 1;
             const roomName = cols[4] || "班級教室";
-            
+
             // 單雙週中文轉換
             const rawWType = cols[5] || "";
             let wType = "EVERY";
@@ -2478,7 +2478,7 @@ async function handleCurriculumUpdateCourse(courseId, changes) {
     await dbSet("mst_courses", courses);
     syncClassTutors();
     showToast("課程設定已更新！", "success");
-    
+
     // 全面刷新關聯 UI
     renderCurriculumView();
     renderTeacherSummary();
@@ -2661,7 +2661,7 @@ async function importSystemJsonData(jsonPayload) {
     const summaryMsg = `🎉 系統資料匯入成功！共載入 ${classCount} 個班級、${teacherCount} 位教師、${courseCount} 門課程、${schedCount} 筆排課。`;
     try {
         localStorage.setItem("mst_import_toast", JSON.stringify({ message: summaryMsg, type: "success" }));
-    } catch(e) {}
+    } catch (e) { }
 
     showToast(summaryMsg, "success");
     setTimeout(() => window.location.reload(), 1000);
@@ -2671,7 +2671,7 @@ async function importSystemJsonData(jsonPayload) {
 function openImportSystemModal(initialText = "", fileName = "") {
     if (!modalImportSystem) return;
     modalImportSystem.classList.remove("hidden");
-    
+
     if (initialText) {
         if (fileName) {
             switchImportTab("file");
@@ -3220,7 +3220,17 @@ function exportTeacherScheduleTsv() {
                     if (!slotMap[key]) {
                         slotMap[key] = [];
                     }
-                    slotMap[key].push({ courseName: c.name, className: className });
+
+                    let cName = c.name;
+                    const wType = s.week_type || c.week_type;
+                    if (wType === "ODD") {
+                        cName += "(單)";
+                    } else if (wType === "EVEN") {
+                        cName += "(雙)";
+                    }
+                    // 分組 (GROUP) 不加標記
+
+                    slotMap[key].push({ courseName: cName, className: className, weekType: wType });
                 });
             });
 
@@ -3230,6 +3240,11 @@ function exportTeacherScheduleTsv() {
                     const key = `${wd}_${pd}`;
                     const entries = slotMap[key] || [];
                     if (entries.length > 0) {
+                        entries.sort((a, b) => {
+                            if (a.weekType === "ODD" && b.weekType === "EVEN") return -1;
+                            if (a.weekType === "EVEN" && b.weekType === "ODD") return 1;
+                            return 0;
+                        });
                         const courseNamesStr = entries.map(e => e.courseName).join("/");
                         const classNamesStr = entries.map(e => e.className).join("/");
                         row.push(courseNamesStr);
@@ -3275,7 +3290,14 @@ function exportCourseDatabaseTsv() {
 
         const course = courses.find(c => c.id === sched.course_id);
         if (!course) return;
-        const courseName = course.name;
+        let courseName = course.name;
+        const wType = sched.week_type || course.week_type;
+        if (wType === "ODD") {
+            courseName += "(單)";
+        } else if (wType === "EVEN") {
+            courseName += "(雙)";
+        }
+        // 分組 (GROUP) 不加標記
 
         const teacher = teachers.find(t => t.id === course.teacher_id);
         const teacherName = teacher ? teacher.name : "";
@@ -3801,7 +3823,7 @@ function setupConfigEditor() {
         btnSave.addEventListener("click", async () => {
             try {
                 const parsed = JSON.parse(editor.value);
-                
+
                 // 1. 如果輸入包含 periods / classes 頂層物件
                 if (parsed.periods) {
                     systemConfig = { periods: parsed.periods };
@@ -4349,7 +4371,7 @@ function renderClassroomSchedule() {
                 const weekType = (sched && sched.week_type) ? sched.week_type.toLowerCase() : "every";
                 const weekBadge = sched && sched.week_type === "ODD" ? '<span class="week-tag inline">[單]</span> ' :
                     sched && sched.week_type === "EVEN" ? '<span class="week-tag inline">[雙]</span> ' :
-                    sched && sched.week_type === "GROUP" ? '<span class="week-tag inline" style="color: #c4b5fd;">[組]</span> ' : '';
+                        sched && sched.week_type === "GROUP" ? '<span class="week-tag inline" style="color: #c4b5fd;">[組]</span> ' : '';
 
                 const div = document.createElement("div");
                 div.className = `placed-course week-${weekType}`;
@@ -4371,7 +4393,7 @@ function renderClassroomSchedule() {
                 div.querySelector(".btn-delete-placed").addEventListener("mousedown", async (e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    
+
                     // 阻止隨後的 cell 點擊事件觸發 Click-to-Place 排課
                     ignoreNextClickCell = cell;
                     setTimeout(() => {

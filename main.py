@@ -518,7 +518,7 @@ def export_teacher_schedule_tsv(db: Session = Depends(get_db)):
             subject_set[c.name].append(c)
 
         for subject_name, subject_courses in sorted(subject_set.items()):
-            # 建立 (weekday, period) -> [(course_name, class_name)] 的對照
+            # 建立 (weekday, period) -> [(course_name, class_name, week_type)] 的對照
             slot_map: dict[tuple, list] = {}
             for course in subject_courses:
                 class_name = classes_map[course.class_id].name if course.class_id and course.class_id in classes_map else ""
@@ -526,7 +526,15 @@ def export_teacher_schedule_tsv(db: Session = Depends(get_db)):
                     key = (sched.weekday, sched.period)
                     if key not in slot_map:
                         slot_map[key] = []
-                    slot_map[key].append((course.name, class_name))
+                    
+                    c_name = course.name
+                    w_type = sched.week_type or course.week_type
+                    if w_type == "ODD":
+                        c_name += "(單)"
+                    elif w_type == "EVEN":
+                        c_name += "(雙)"
+                    
+                    slot_map[key].append((c_name, class_name, w_type))
 
             row = [subject_name, teacher.name]
             for wd in range(1, 6):
@@ -534,6 +542,7 @@ def export_teacher_schedule_tsv(db: Session = Depends(get_db)):
                     key = (wd, pd)
                     entries = slot_map.get(key, [])
                     if entries:
+                        entries.sort(key=lambda e: (0 if e[2] == "ODD" else (1 if e[2] == "EVEN" else 2)))
                         course_names = "/".join(e[0] for e in entries)
                         class_names = "/".join(e[1] for e in entries)
                     else:
@@ -576,12 +585,17 @@ def export_course_database_tsv(db: Session = Depends(get_db)):
         if not course:
             continue
         course_name = course.name
+        w_type = sched.week_type or course.week_type
+        if w_type == "ODD":
+            course_name += "(單)"
+        elif w_type == "EVEN":
+            course_name += "(雙)"
 
         teacher = teachers_map.get(course.teacher_id) if course.teacher_id else None
         teacher_name = teacher.name if teacher else ""
 
         classroom = classrooms_map.get(sched.classroom_id) if sched.classroom_id else None
-        classroom_name = classroom.name if classroom else ""
+        classroom_name = classroom.name if classroom and classroom.name != "班級教室" and classroom.type != "普通" else ""
 
         # 教師名稱格式：教師姓名&教室名稱
         teacher_field = f"{teacher_name}&{classroom_name}" if classroom_name else teacher_name
