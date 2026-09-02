@@ -2350,4 +2350,500 @@ body {
     opacity: 0.5;
     cursor: not-allowed;
     box-shadow: none !important;
+}
+
+/* ==========================================================================
+   彈出式可拖動位置課表視窗 (Floating Draggable Schedule Window)
+   ========================================================================== */
+.floating-schedule-window {
+    position: fixed;
+    top: 60px;
+    right: 24px;
+    width: 420px;
+    max-width: 95vw;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: box-shadow 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+    animation: floatingFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.floating-schedule-window.hidden {
+    display: none !important;
+}
+
+.floating-schedule-window.is-dragging {
+    opacity: 0.92;
+    cursor: grabbing !important;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 0 2px var(--accent-blue);
+}
+
+@keyframes floatingFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.floating-window-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.floating-window-header:active {
+    cursor: grabbing;
+}
+
+.floating-window-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #f1f5f9;
+    letter-spacing: 0.3px;
+    pointer-events: none;
+}
+
+.floating-window-title i {
+    color: var(--accent-cyan);
+    font-size: 14px;
+}
+
+.floating-window-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-floating-action {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.15s ease;
+}
+
+.btn-floating-action:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--text-primary);
+    transform: scale(1.05);
+}
+
+.btn-floating-action.btn-floating-close:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #fca5a5;
+}
+
+.floating-window-body {
+    padding: 8px 10px 10px 10px;
+    overflow-y: auto;
+    max-height: 75vh;
+}
+
+.floating-schedule-window.collapsed .floating-window-body {
+    display: none;
+}
+
+.floating-window-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 6px 8px 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 6px;
+}
+
+.floating-window-info .floating-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: var(--accent-cyan);
+    font-weight: 500;
+}
+
+.floating-grid-wrapper {
+    overflow-x: auto;
+}
+
+.floating-schedule-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+    table-layout: fixed;
+}
+
+.floating-schedule-table th,
+.floating-schedule-table td {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 3px 2px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.floating-schedule-table th {
+    background: rgba(30, 41, 59, 0.8);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 11px;
+    padding: 4px 2px;
+}
+
+.floating-schedule-table th:first-child,
+.floating-schedule-table td:first-child {
+    width: 24px;
+    color: var(--text-muted);
+    font-weight: 600;
+    background: rgba(15, 23, 42, 0.7);
+}
+
+.floating-schedule-table tr.lunch-row td {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 3px;
+}
+
+.floating-schedule-table td.floating-cell {
+    height: 38px;
+    min-height: 38px;
+    background: rgba(15, 23, 42, 0.4);
+    position: relative;
+    padding: 2px;
+}
+
+.floating-cell.unavailable {
+    background: rgba(239, 68, 68, 0.08);
+    background-image: repeating-linear-gradient(45deg, rgba(239, 68, 68, 0.05) 0, rgba(239, 68, 68, 0.05) 6px, transparent 6px, transparent 12px);
+    color: rgba(248, 113, 113, 0.6);
+}
+
+.floating-cell.unavailable::after {
+    content: "🚫";
+    font-size: 10px;
+    opacity: 0.5;
+}
+
+.floating-course-chip {
+    background: rgba(59, 130, 246, 0.22);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    border-radius: 4px;
+    padding: 2px 3px;
+    margin-bottom: 2px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform 0.1s ease;
+}
+
+.floating-course-chip:last-child {
+    margin-bottom: 0;
+}
+
+.floating-course-chip.week-odd {
+    background: rgba(6, 182, 212, 0.2);
+    border-color: rgba(6, 182, 212, 0.45);
+}
+
+.floating-course-chip.week-even {
+    background: rgba(236, 72, 153, 0.2);
+    border-color: rgba(236, 72, 153, 0.45);
+}
+
+.floating-course-chip.week-group {
+    background: rgba(168, 85, 247, 0.2);
+    border-color: rgba(168, 85, 247, 0.45);
+}
+
+.floating-course-chip .course-name {
+    font-weight: 600;
+    color: #ffffff;
+    font-size: 11px;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.floating-course-chip .course-sub {
+    font-size: 9.5px;
+    color: #cbd5e1;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.floating-cell.has-group-split {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* ==========================================================================
+   系統說明與規格手冊 Modal (Help Modal)
+   ========================================================================== */
+.help-modal-card {
+    max-width: 860px !important;
+    width: 92% !important;
+    background: rgba(15, 23, 42, 0.96) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 0 35px rgba(59, 130, 246, 0.25) !important;
+}
+
+.help-modal-body {
+    padding: 20px 24px !important;
+    gap: 18px !important;
+    max-height: 72vh !important;
+}
+
+.help-nav-tabs {
+    display: flex;
+    gap: 6px;
+    background: rgba(30, 41, 59, 0.7);
+    padding: 5px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    overflow-x: auto;
+}
+
+.help-tab-btn {
+    flex: 1;
+    min-width: 120px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: var(--transition-smooth);
+    white-space: nowrap;
+}
+
+.help-tab-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.help-tab-btn.active {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+    color: #ffffff;
+    font-weight: 600;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+}
+
+.help-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    animation: fadeInHelp 0.2s ease;
+}
+
+.help-pane.hidden {
+    display: none !important;
+}
+
+@keyframes fadeInHelp {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.help-section {
+    background: rgba(30, 41, 59, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.help-section h4 {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.help-section h4 i {
+    color: var(--accent-cyan);
+    font-size: 14px;
+}
+
+.help-section p {
+    margin: 0;
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.6;
+}
+
+.help-feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.help-feature-item {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: var(--transition-smooth);
+}
+
+.help-feature-item:hover {
+    border-color: rgba(59, 130, 246, 0.4);
+    transform: translateY(-2px);
+}
+
+.help-feature-item i {
+    font-size: 18px;
+    color: var(--accent-cyan);
+    margin-bottom: 2px;
+}
+
+.help-feature-item strong {
+    font-size: 13px;
+    color: #f8fafc;
+}
+
+.help-feature-item span {
+    font-size: 11.5px;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+.help-step-list {
+    margin: 0;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+
+.help-step-list li strong {
+    color: #38bdf8;
+}
+
+.help-bullet-list {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+
+.help-card-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin-top: 2px;
+}
+
+.help-card {
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.help-card strong {
+    font-size: 12.5px;
+    color: #67e8f9;
+}
+
+.help-card span {
+    font-size: 11.5px;
+    color: #cbd5e1;
+    line-height: 1.4;
+}
+
+.help-guide-box {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.guide-item {
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 12.5px;
+    color: #cbd5e1;
+    line-height: 1.45;
+}
+
+.guide-badge {
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    color: #60a5fa;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
 }

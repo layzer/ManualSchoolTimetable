@@ -15,8 +15,23 @@ let selectedCourseId = null;  // 當前被點選的課程定義 ID (點選排課
 let teacherSelectedCourseId = null; // 教師課表介面當前選取的課程 ID (教師排課模式)
 let ignoreNextClickCell = null;    // 用以防止點選刪除排課後的 click 事件穿透
 
+// --- 浮動可拖曳課表狀態 ---
+let floatingScheduleState = {
+    isOpen: false,
+    type: null, // 'teacher' | 'class'
+    id: null,
+    isCollapsed: false
+};
 
 // --- DOM 元素 ---
+const floatingWindow = document.getElementById("floating-schedule-window");
+const floatingWindowHeader = document.getElementById("floating-window-header");
+const floatingWindowTitleText = document.getElementById("floating-window-title-text");
+const floatingWindowInfo = document.getElementById("floating-window-info");
+const floatingGridBody = document.getElementById("floating-grid-body");
+const btnCollapseFloating = document.getElementById("btn-collapse-floating-window");
+const btnCloseFloating = document.getElementById("btn-close-floating-window");
+
 const selectClass = document.getElementById("select-class");
 const selectClassroom = document.getElementById("select-classroom");
 const coursePool = document.getElementById("course-pool");
@@ -113,6 +128,12 @@ const btnExportTeacherPdf = document.getElementById("btn-export-teacher-pdf");
 const btnExportTeacherScheduleTsv = document.getElementById("btn-export-teacher-schedule-tsv");
 const btnExportCourseDatabaseTsv = document.getElementById("btn-export-course-database-tsv");
 const btnClearDatabase = document.getElementById("btn-clear-database");
+
+// --- 系統說明 Modal DOM ---
+const btnOpenSystemHelp = document.getElementById("btn-open-system-help");
+const modalSystemHelp = document.getElementById("modal-system-help");
+const btnCloseHelpModal = document.getElementById("btn-close-help-modal");
+const btnConfirmHelpModal = document.getElementById("btn-confirm-help-modal");
 
 
 // --- localForage 配置與 Store Helper（含 localStorage 雙重自動備援）---
@@ -449,13 +470,260 @@ function attachSnapshotToLogEntry(div, snapshot, timeStr, msg) {
     });
 }
 
+// --- 浮動可拖曳課表功能函式 ---
+function initFloatingWindowDrag() {
+    if (!floatingWindow || !floatingWindowHeader) return;
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let initialLeft = 0, initialTop = 0;
+
+    floatingWindowHeader.addEventListener("mousedown", (e) => {
+        if (e.target.closest(".btn-floating-action")) return;
+        isDragging = true;
+        floatingWindow.classList.add("is-dragging");
+
+        const rect = floatingWindow.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        floatingWindow.style.right = "auto";
+        floatingWindow.style.bottom = "auto";
+        floatingWindow.style.left = `${initialLeft}px`;
+        floatingWindow.style.top = `${initialTop}px`;
+
+        e.preventDefault();
+    });
+
+    document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        let newLeft = initialLeft + dx;
+        let newTop = initialTop + dy;
+
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const rect = floatingWindow.getBoundingClientRect();
+
+        newLeft = Math.max(10, Math.min(newLeft, winW - rect.width - 10));
+        newTop = Math.max(10, Math.min(newTop, winH - 40));
+
+        floatingWindow.style.left = `${newLeft}px`;
+        floatingWindow.style.top = `${newTop}px`;
+    });
+
+    document.addEventListener("mouseup", () => {
+        if (isDragging) {
+            isDragging = false;
+            floatingWindow.classList.remove("is-dragging");
+        }
+    });
+
+    if (btnCollapseFloating) {
+        btnCollapseFloating.addEventListener("click", () => {
+            floatingScheduleState.isCollapsed = !floatingScheduleState.isCollapsed;
+            floatingWindow.classList.toggle("collapsed", floatingScheduleState.isCollapsed);
+            btnCollapseFloating.innerHTML = floatingScheduleState.isCollapsed
+                ? '<i class="fa-solid fa-plus"></i>'
+                : '<i class="fa-solid fa-minus"></i>';
+        });
+    }
+
+    if (btnCloseFloating) {
+        btnCloseFloating.addEventListener("click", () => {
+            closeFloatingSchedule();
+        });
+    }
+}
+
+function openFloatingSchedule(type, id) {
+    if (!type || !id) return;
+    floatingScheduleState.isOpen = true;
+    floatingScheduleState.type = type;
+    floatingScheduleState.id = parseInt(id);
+
+    if (floatingWindow) {
+        floatingWindow.classList.remove("hidden");
+    }
+    renderFloatingSchedule();
+}
+
+function closeFloatingSchedule() {
+    floatingScheduleState.isOpen = false;
+    floatingScheduleState.type = null;
+    floatingScheduleState.id = null;
+    if (floatingWindow) {
+        floatingWindow.classList.add("hidden");
+    }
+}
+
+function renderFloatingSchedule() {
+    if (!floatingScheduleState.isOpen || !floatingGridBody) return;
+
+    const { type, id } = floatingScheduleState;
+    floatingGridBody.innerHTML = "";
+
+    if (type === "teacher") {
+        const teacher = teachers.find(t => String(t.id) === String(id));
+        if (!teacher) return;
+
+        if (floatingWindowTitleText) {
+            floatingWindowTitleText.textContent = `${teacher.name} 個人課表`;
+        }
+
+        const teacherSchedules = schedules.filter(s => {
+            const c = courses.find(course => String(course.id) === String(s.course_id));
+            return c && String(c.teacher_id) === String(id);
+        });
+        const totalPeriods = teacherSchedules.reduce((sum, s) => sum + (s.week_type === "ODD" || s.week_type === "EVEN" ? 0.5 : 1.0), 0);
+
+        if (floatingWindowInfo) {
+            floatingWindowInfo.innerHTML = `
+                <span><i class="fa-solid fa-user-tie"></i> ${teacher.name} ${teacher.is_tutor ? '(導師)' : ''}</span>
+                <span class="floating-badge"><i class="fa-solid fa-clock"></i> 已排 ${totalPeriods} 節</span>
+            `;
+        }
+
+        const unavailableSlots = teacher.unavailable_slots || [];
+
+        for (let p = 1; p <= 8; p++) {
+            if (p === 6) {
+                const lunchTr = document.createElement("tr");
+                lunchTr.className = "lunch-row";
+                lunchTr.innerHTML = `<td>午</td><td colspan="5">午　休</td>`;
+                floatingGridBody.appendChild(lunchTr);
+            }
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${p}</td>`;
+
+            for (let d = 1; d <= 5; d++) {
+                const td = document.createElement("td");
+                td.className = "floating-cell";
+                const slotKey = `${d}-${p}`;
+
+                if (unavailableSlots.includes(slotKey)) {
+                    td.classList.add("unavailable");
+                    td.title = "不可排課時段";
+                }
+
+                const cellScheds = teacherSchedules
+                    .filter(s => s.weekday === d && s.period === p)
+                    .sort((a, b) => {
+                        if (a.week_type === "ODD" && b.week_type === "EVEN") return -1;
+                        if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
+                        return 0;
+                    });
+
+                if (cellScheds.length > 0) {
+                    td.classList.remove("unavailable");
+                    if (cellScheds.length > 1) {
+                        td.classList.add("has-group-split");
+                    }
+                    cellScheds.forEach(s => {
+                        const c = courses.find(course => String(course.id) === String(s.course_id));
+                        const cls = classes.find(classItem => String(classItem.id) === String(s.class_id));
+                        const room = classrooms.find(r => String(r.id) === String(s.classroom_id));
+
+                        const weekType = (s.week_type || 'EVERY').toLowerCase();
+                        const weekBadge = s.week_type === 'ODD' ? '[單]' : s.week_type === 'EVEN' ? '[雙]' : s.week_type === 'GROUP' ? '[組]' : '';
+
+                        const chip = document.createElement("div");
+                        chip.className = `floating-course-chip week-${weekType}`;
+                        chip.innerHTML = `
+                            <div class="course-name">${weekBadge}${c ? c.name : '課程'}</div>
+                            <div class="course-sub">${cls ? cls.name : ''} ${room ? room.name : ''}</div>
+                        `;
+                        td.appendChild(chip);
+                    });
+                }
+
+                tr.appendChild(td);
+            }
+            floatingGridBody.appendChild(tr);
+        }
+
+    } else if (type === "class") {
+        const cls = classes.find(c => String(c.id) === String(id));
+        if (!cls) return;
+
+        if (floatingWindowTitleText) {
+            floatingWindowTitleText.textContent = `${cls.name} 班級課表`;
+        }
+
+        const classSchedules = schedules
+            .filter(s => String(s.class_id) === String(id))
+            .sort((a, b) => {
+                if (a.week_type === "ODD" && b.week_type === "EVEN") return -1;
+                if (a.week_type === "EVEN" && b.week_type === "ODD") return 1;
+                return 0;
+            });
+        const totalPeriods = classSchedules.reduce((sum, s) => sum + (s.week_type === "ODD" || s.week_type === "EVEN" ? 0.5 : 1.0), 0);
+
+        if (floatingWindowInfo) {
+            floatingWindowInfo.innerHTML = `
+                <span><i class="fa-solid fa-graduation-cap"></i> ${cls.name} (${cls.grade}年級)</span>
+                <span class="floating-badge"><i class="fa-solid fa-clock"></i> 已排 ${totalPeriods} 節</span>
+            `;
+        }
+
+        for (let p = 1; p <= 8; p++) {
+            if (p === 6) {
+                const lunchTr = document.createElement("tr");
+                lunchTr.className = "lunch-row";
+                lunchTr.innerHTML = `<td>午</td><td colspan="5">午　休</td>`;
+                floatingGridBody.appendChild(lunchTr);
+            }
+
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${p}</td>`;
+
+            for (let d = 1; d <= 5; d++) {
+                const td = document.createElement("td");
+                td.className = "floating-cell";
+
+                const cellScheds = classSchedules.filter(s => s.weekday === d && s.period === p);
+                if (cellScheds.length > 0) {
+                    if (cellScheds.length > 1) {
+                        td.classList.add("has-group-split");
+                    }
+                    cellScheds.forEach(s => {
+                        const c = courses.find(course => String(course.id) === String(s.course_id));
+                        const teacher = c ? teachers.find(t => String(t.id) === String(c.teacher_id)) : null;
+                        const room = classrooms.find(r => String(r.id) === String(s.classroom_id));
+
+                        const weekType = (s.week_type || 'EVERY').toLowerCase();
+                        const weekBadge = s.week_type === 'ODD' ? '[單]' : s.week_type === 'EVEN' ? '[雙]' : s.week_type === 'GROUP' ? '[組]' : '';
+
+                        const chip = document.createElement("div");
+                        chip.className = `floating-course-chip week-${weekType}`;
+                        chip.innerHTML = `
+                            <div class="course-name">${weekBadge}${c ? c.name : '課程'}</div>
+                            <div class="course-sub">${teacher ? teacher.name.split(' ')[0] : ''} ${room ? room.name : ''}</div>
+                        `;
+                        td.appendChild(chip);
+                    });
+                }
+
+                tr.appendChild(td);
+            }
+            floatingGridBody.appendChild(tr);
+        }
+    }
+}
+
 // --- 事件綁定 ---
 function setupEventListeners() {
+    initFloatingWindowDrag();
+
     document.addEventListener("click", () => {
         if (contextMenu) contextMenu.classList.add("hidden");
     });
     document.addEventListener("contextmenu", (e) => {
-        if (!e.target.closest(".placed-course") && !e.target.closest(".log-entry") && contextMenu) {
+        if (!e.target.closest(".placed-course") && !e.target.closest(".course-card") && !e.target.closest(".log-entry") && contextMenu) {
             contextMenu.classList.add("hidden");
         }
     });
@@ -780,6 +1048,10 @@ async function loadAllData() {
 
         renderCourseMatrix();
         renderMatrixTeacherList();
+
+        if (floatingScheduleState.isOpen) {
+            renderFloatingSchedule();
+        }
     } catch (err) {
         log("資料載入失敗: " + err.message, "error");
     }
@@ -1005,6 +1277,52 @@ function renderCourses() {
             }
         });
 
+        // 右鍵選單：彈出或前往教師個人課表
+        card.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const teacherId = c.teacher_id;
+            const teacher = teachers.find(t => t.id === teacherId);
+            const teacherName = teacher ? teacher.name : "該教師";
+
+            const ul = contextMenu?.querySelector("ul");
+            if (ul) {
+                ul.innerHTML = `
+                    <li id="menu-item-popup-teacher" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <i class="fa-solid fa-window-restore" style="color: var(--accent-cyan);"></i>
+                        <span>彈出顯示 ${teacherName} 的課表</span>
+                    </li>
+                    <li id="menu-item-goto-teacher" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                        <span>前往 ${teacherName} 的課表</span>
+                    </li>
+                `;
+                const itemPopup = ul.querySelector("#menu-item-popup-teacher");
+                if (itemPopup) {
+                    itemPopup.onclick = () => {
+                        openFloatingSchedule('teacher', teacherId);
+                        contextMenu.classList.add("hidden");
+                    };
+                }
+                const itemGoto = ul.querySelector("#menu-item-goto-teacher");
+                if (itemGoto) {
+                    itemGoto.onclick = () => {
+                        const tabBtn = document.querySelector(`.tab-btn[data-tab="teacher-schedule-view"]`);
+                        if (tabBtn) tabBtn.click();
+                        if (selectTeacher) {
+                            selectTeacher.value = teacherId;
+                            teacherSelectedCourseId = null;
+                            renderTeacherSchedule();
+                            renderTeacherCourses(teacherId);
+                        }
+                        contextMenu.classList.add("hidden");
+                    };
+                }
+            }
+            showContextMenu(e);
+        });
+
         coursePool.appendChild(card);
     });
 
@@ -1123,24 +1441,40 @@ async function renderSchedules() {
 
             const ul = contextMenu?.querySelector("ul");
             if (ul) {
-                ul.innerHTML = `<li id="menu-item-goto"></li>`;
-            }
+                ul.innerHTML = `
+                    <li id="menu-item-popup-teacher" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <i class="fa-solid fa-window-restore" style="color: var(--accent-cyan);"></i>
+                        <span>彈出顯示 ${teacherName} 的課表</span>
+                    </li>
+                    <li id="menu-item-goto-teacher" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                        <span>前往 ${teacherName} 的課表</span>
+                    </li>
+                `;
 
-            const menuItemGoto = document.getElementById("menu-item-goto");
-            if (menuItemGoto && contextMenu) {
-                menuItemGoto.innerHTML = `<i class="fa-solid fa-arrow-right-to-bracket"></i> 前往 ${teacherName} 的課表`;
-                menuItemGoto.onclick = () => {
-                    const tabBtn = document.querySelector(`.tab-btn[data-tab="teacher-schedule-view"]`);
-                    if (tabBtn) tabBtn.click();
+                const itemPopup = ul.querySelector("#menu-item-popup-teacher");
+                if (itemPopup) {
+                    itemPopup.onclick = () => {
+                        openFloatingSchedule('teacher', teacherId);
+                        contextMenu.classList.add("hidden");
+                    };
+                }
 
-                    if (selectTeacher) {
-                        selectTeacher.value = teacherId;
-                        teacherSelectedCourseId = null;
-                        renderTeacherSchedule();
-                        renderTeacherCourses(teacherId);
-                    }
-                    contextMenu.classList.add("hidden");
-                };
+                const itemGoto = ul.querySelector("#menu-item-goto-teacher");
+                if (itemGoto) {
+                    itemGoto.onclick = () => {
+                        const tabBtn = document.querySelector(`.tab-btn[data-tab="teacher-schedule-view"]`);
+                        if (tabBtn) tabBtn.click();
+
+                        if (selectTeacher) {
+                            selectTeacher.value = teacherId;
+                            teacherSelectedCourseId = null;
+                            renderTeacherSchedule();
+                            renderTeacherCourses(teacherId);
+                        }
+                        contextMenu.classList.add("hidden");
+                    };
+                }
 
                 showContextMenu(e);
             }
@@ -1743,27 +2077,44 @@ function renderTeacherSchedule() {
 
                     const classId = sched.class_id;
                     const className = cls ? cls.name : "該班級";
-                    const teacherId = course ? course.teacher_id : null;
-                    const teacherName = teacher ? teacher.name : "該教師";
 
                     const ul = contextMenu?.querySelector("ul");
                     if (ul) {
                         ul.innerHTML = `
-                            <li id="menu-item-goto-class"><i class="fa-solid fa-graduation-cap"></i> 前往 ${className} 的課表</li>
+                            <li id="menu-item-popup-class" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <i class="fa-solid fa-window-restore" style="color: var(--accent-cyan);"></i>
+                                <span>彈出顯示 ${className} 的課表</span>
+                            </li>
+                            <li id="menu-item-goto-class" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <i class="fa-solid fa-graduation-cap"></i>
+                                <span>前往 ${className} 的課表</span>
+                            </li>
                         `;
-                        ul.querySelector("#menu-item-goto-class").onclick = () => {
-                            const tabBtn = document.querySelector(`.tab-btn[data-tab="class-schedule-view"]`);
-                            if (tabBtn) tabBtn.click();
-                            if (selectClass) {
-                                selectClass.value = classId;
-                                selectedClassId = classId;
-                                clearSelectedCourse();
-                                updateClassDisplay();
-                                renderSchedules();
-                                renderCourses();
-                            }
-                            contextMenu.classList.add("hidden");
-                        };
+
+                        const itemPopup = ul.querySelector("#menu-item-popup-class");
+                        if (itemPopup) {
+                            itemPopup.onclick = () => {
+                                openFloatingSchedule('class', classId);
+                                contextMenu.classList.add("hidden");
+                            };
+                        }
+
+                        const itemGoto = ul.querySelector("#menu-item-goto-class");
+                        if (itemGoto) {
+                            itemGoto.onclick = () => {
+                                const tabBtn = document.querySelector(`.tab-btn[data-tab="class-schedule-view"]`);
+                                if (tabBtn) tabBtn.click();
+                                if (selectClass) {
+                                    selectClass.value = classId;
+                                    selectedClassId = classId;
+                                    clearSelectedCourse();
+                                    updateClassDisplay();
+                                    renderSchedules();
+                                    renderCourses();
+                                }
+                                contextMenu.classList.add("hidden");
+                            };
+                        }
                     }
 
                     showContextMenu(e);
@@ -2982,6 +3333,88 @@ function setupSettingsListeners() {
             }
         });
     }
+
+    // 10. 開啟系統說明 Modal
+    if (btnOpenSystemHelp) {
+        btnOpenSystemHelp.addEventListener("click", () => {
+            openSystemHelpModal();
+        });
+    }
+
+    // 系統說明 Modal 關閉按鈕
+    if (btnCloseHelpModal) {
+        btnCloseHelpModal.addEventListener("click", closeSystemHelpModal);
+    }
+    if (btnConfirmHelpModal) {
+        btnConfirmHelpModal.addEventListener("click", closeSystemHelpModal);
+    }
+
+    // 點擊背景遮罩關閉
+    if (modalSystemHelp) {
+        modalSystemHelp.addEventListener("click", (e) => {
+            if (e.target === modalSystemHelp) {
+                closeSystemHelpModal();
+            }
+        });
+
+        // 說明分頁切換按鈕
+        const helpTabBtns = modalSystemHelp.querySelectorAll(".help-tab-btn");
+        helpTabBtns.forEach(btn => {
+            btn.addEventListener("click", () => {
+                const targetPane = btn.dataset.helpTarget;
+                if (targetPane) switchHelpTab(targetPane);
+            });
+        });
+    }
+
+    // 全域鍵盤 ESC 鍵關閉所有彈窗
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            if (modalSystemHelp && !modalSystemHelp.classList.contains("hidden")) {
+                closeSystemHelpModal();
+            }
+            if (modalImportSystem && !modalImportSystem.classList.contains("hidden")) {
+                closeImportSystemModal();
+            }
+            if (contextMenu && !contextMenu.classList.contains("hidden")) {
+                contextMenu.classList.add("hidden");
+            }
+        }
+    });
+}
+
+// --- 系統說明 Modal 操作函式 ---
+function openSystemHelpModal() {
+    if (!modalSystemHelp) return;
+    modalSystemHelp.classList.remove("hidden");
+    switchHelpTab("help-pane-overview");
+}
+
+function closeSystemHelpModal() {
+    if (!modalSystemHelp) return;
+    modalSystemHelp.classList.add("hidden");
+}
+
+function switchHelpTab(targetPaneId) {
+    if (!modalSystemHelp) return;
+    const tabBtns = modalSystemHelp.querySelectorAll(".help-tab-btn");
+    const panes = modalSystemHelp.querySelectorAll(".help-pane");
+
+    tabBtns.forEach(btn => {
+        if (btn.dataset.helpTarget === targetPaneId) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    });
+
+    panes.forEach(pane => {
+        if (pane.id === targetPaneId) {
+            pane.classList.remove("hidden");
+        } else {
+            pane.classList.add("hidden");
+        }
+    });
 }
 
 // --- 取得動態科目 ---
@@ -4259,6 +4692,54 @@ function renderTeacherCourses(teacherId) {
             }
         });
 
+        // 右鍵選單：彈出或前往班級課表
+        card.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const classId = c.class_id;
+            const cls = classes.find(classItem => classItem.id === classId);
+            const className = cls ? cls.name : "該班級";
+
+            const ul = contextMenu?.querySelector("ul");
+            if (ul) {
+                ul.innerHTML = `
+                    <li id="menu-item-popup-class" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <i class="fa-solid fa-window-restore" style="color: var(--accent-cyan);"></i>
+                        <span>彈出顯示 ${className} 的課表</span>
+                    </li>
+                    <li id="menu-item-goto-class" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <i class="fa-solid fa-graduation-cap"></i>
+                        <span>前往 ${className} 的課表</span>
+                    </li>
+                `;
+                const itemPopup = ul.querySelector("#menu-item-popup-class");
+                if (itemPopup) {
+                    itemPopup.onclick = () => {
+                        openFloatingSchedule('class', classId);
+                        contextMenu.classList.add("hidden");
+                    };
+                }
+                const itemGoto = ul.querySelector("#menu-item-goto-class");
+                if (itemGoto) {
+                    itemGoto.onclick = () => {
+                        const tabBtn = document.querySelector(`.tab-btn[data-tab="class-schedule-view"]`);
+                        if (tabBtn) tabBtn.click();
+                        if (selectClass) {
+                            selectClass.value = classId;
+                            selectedClassId = classId;
+                            clearSelectedCourse();
+                            updateClassDisplay();
+                            renderSchedules();
+                            renderCourses();
+                        }
+                        contextMenu.classList.add("hidden");
+                    };
+                }
+            }
+            showContextMenu(e);
+        });
+
         poolEl.appendChild(card);
     });
 }
@@ -4406,7 +4887,7 @@ function renderClassroomSchedule() {
                     }
                 });
 
-                // 右鍵雙向跳轉
+                // 右鍵雙向跳轉與彈出
                 div.addEventListener("contextmenu", (e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -4419,35 +4900,71 @@ function renderClassroomSchedule() {
                     const ul = contextMenu?.querySelector("ul");
                     if (ul) {
                         ul.innerHTML = `
-                            <li id="menu-item-goto-class"><i class="fa-solid fa-graduation-cap"></i> 前往 ${className} 的課表</li>
-                            <li id="menu-item-goto-teacher"><i class="fa-solid fa-user-tie"></i> 前往 ${teacherName} 的課表</li>
+                            <li id="menu-item-popup-class" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <i class="fa-solid fa-window-restore" style="color: var(--accent-cyan);"></i>
+                                <span>彈出顯示 ${className} 的課表</span>
+                            </li>
+                            <li id="menu-item-popup-teacher" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <i class="fa-solid fa-window-restore" style="color: var(--accent-cyan);"></i>
+                                <span>彈出顯示 ${teacherName} 的課表</span>
+                            </li>
+                            <li id="menu-item-goto-class" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <i class="fa-solid fa-graduation-cap"></i>
+                                <span>前往 ${className} 的課表</span>
+                            </li>
+                            <li id="menu-item-goto-teacher" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <i class="fa-solid fa-user-tie"></i>
+                                <span>前往 ${teacherName} 的課表</span>
+                            </li>
                         `;
 
-                        ul.querySelector("#menu-item-goto-class").onclick = () => {
-                            const tabBtn = document.querySelector(`.tab-btn[data-tab="class-schedule-view"]`);
-                            if (tabBtn) tabBtn.click();
-                            if (selectClass) {
-                                selectClass.value = classId;
-                                selectedClassId = classId;
-                                clearSelectedCourse();
-                                updateClassDisplay();
-                                renderSchedules();
-                                renderCourses();
-                            }
-                            contextMenu.classList.add("hidden");
-                        };
+                        const itemPopupClass = ul.querySelector("#menu-item-popup-class");
+                        if (itemPopupClass) {
+                            itemPopupClass.onclick = () => {
+                                openFloatingSchedule('class', classId);
+                                contextMenu.classList.add("hidden");
+                            };
+                        }
 
-                        ul.querySelector("#menu-item-goto-teacher").onclick = () => {
-                            const tabBtn = document.querySelector(`.tab-btn[data-tab="teacher-schedule-view"]`);
-                            if (tabBtn) tabBtn.click();
-                            if (selectTeacher) {
-                                selectTeacher.value = teacherId;
-                                teacherSelectedCourseId = null;
-                                renderTeacherSchedule();
-                                renderTeacherCourses(teacherId);
-                            }
-                            contextMenu.classList.add("hidden");
-                        };
+                        const itemPopupTeacher = ul.querySelector("#menu-item-popup-teacher");
+                        if (itemPopupTeacher && teacherId) {
+                            itemPopupTeacher.onclick = () => {
+                                openFloatingSchedule('teacher', teacherId);
+                                contextMenu.classList.add("hidden");
+                            };
+                        }
+
+                        const itemGotoClass = ul.querySelector("#menu-item-goto-class");
+                        if (itemGotoClass) {
+                            itemGotoClass.onclick = () => {
+                                const tabBtn = document.querySelector(`.tab-btn[data-tab="class-schedule-view"]`);
+                                if (tabBtn) tabBtn.click();
+                                if (selectClass) {
+                                    selectClass.value = classId;
+                                    selectedClassId = classId;
+                                    clearSelectedCourse();
+                                    updateClassDisplay();
+                                    renderSchedules();
+                                    renderCourses();
+                                }
+                                contextMenu.classList.add("hidden");
+                            };
+                        }
+
+                        const itemGotoTeacher = ul.querySelector("#menu-item-goto-teacher");
+                        if (itemGotoTeacher) {
+                            itemGotoTeacher.onclick = () => {
+                                const tabBtn = document.querySelector(`.tab-btn[data-tab="teacher-schedule-view"]`);
+                                if (tabBtn) tabBtn.click();
+                                if (selectTeacher) {
+                                    selectTeacher.value = teacherId;
+                                    teacherSelectedCourseId = null;
+                                    renderTeacherSchedule();
+                                    renderTeacherCourses(teacherId);
+                                }
+                                contextMenu.classList.add("hidden");
+                            };
+                        }
                     }
 
                     showContextMenu(e);

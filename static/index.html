@@ -561,10 +561,15 @@
         <!-- Tab 5: System Settings View -->
         <main id="system-settings-view" class="tab-content workspace hidden">
             <section class="summary-area glass-panel full-width">
-                <div class="summary-header">
-                    <h2><i class="fa-solid fa-gear"></i> 系統設定</h2>
-                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">管理班級資料、匯入/匯出系統備份與下載課表。
-                    </p>
+                <div class="summary-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h2><i class="fa-solid fa-gear"></i> 系統設定</h2>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">管理班級資料、匯入/匯出系統備份、下載課表與系統說明。
+                        </p>
+                    </div>
+                    <button id="btn-open-system-help" class="btn btn-primary" style="display: flex; align-items: center; gap: 8px; font-weight: 600; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">
+                        <i class="fa-solid fa-circle-question" style="font-size: 16px;"></i> 開啟系統說明
+                    </button>
                 </div>
 
                 <!-- Section 2: Import/Export System Data -->
@@ -850,6 +855,44 @@
         </ul>
     </div>
 
+    <!-- 彈出式可拖動位置課表視窗 (Floating Draggable Schedule Window) -->
+    <div id="floating-schedule-window" class="floating-schedule-window hidden">
+        <div class="floating-window-header" id="floating-window-header">
+            <div class="floating-window-title" id="floating-window-title">
+                <i class="fa-solid fa-calendar-days"></i>
+                <span id="floating-window-title-text">課表預覽</span>
+            </div>
+            <div class="floating-window-actions">
+                <button type="button" class="btn-floating-action" id="btn-collapse-floating-window" title="最小化/展開">
+                    <i class="fa-solid fa-minus"></i>
+                </button>
+                <button type="button" class="btn-floating-action btn-floating-close" id="btn-close-floating-window" title="關閉">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+        <div class="floating-window-body" id="floating-window-body">
+            <div class="floating-window-info" id="floating-window-info"></div>
+            <div class="floating-grid-wrapper">
+                <table class="floating-schedule-table">
+                    <thead>
+                        <tr>
+                            <th>節</th>
+                            <th>一</th>
+                            <th>二</th>
+                            <th>三</th>
+                            <th>四</th>
+                            <th>五</th>
+                        </tr>
+                    </thead>
+                    <tbody id="floating-grid-body">
+                        <!-- JS 動態產生 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- 匯入系統備份 (JSON) 專屬彈窗 Modal -->
     <div id="modal-import-system" class="custom-modal-backdrop hidden">
         <div class="custom-modal-card">
@@ -902,7 +945,212 @@
         </div>
     </div>
 
-    <script src="app.js?v=20260826_remove_group_tag_class_view"></script>
+    <!-- 系統說明與使用指引 Modal -->
+    <div id="modal-system-help" class="custom-modal-backdrop hidden">
+        <div class="custom-modal-card help-modal-card">
+            <div class="custom-modal-header">
+                <h3><i class="fa-solid fa-book-bookmark"></i> 國小排課系統 - 規格說明與操作手冊</h3>
+                <button type="button" class="btn-close-modal" id="btn-close-help-modal">&times;</button>
+            </div>
+            <div class="custom-modal-body help-modal-body">
+                <!-- 說明導覽標籤 -->
+                <div class="help-nav-tabs">
+                    <button type="button" class="help-tab-btn active" data-help-target="help-pane-overview">
+                        <i class="fa-solid fa-star"></i> 快速上手
+                    </button>
+                    <button type="button" class="help-tab-btn" data-help-target="help-pane-rules">
+                        <i class="fa-solid fa-calendar-week"></i> 排課與衝突規則
+                    </button>
+                    <button type="button" class="help-tab-btn" data-help-target="help-pane-interact">
+                        <i class="fa-solid fa-computer-mouse"></i> 右鍵與浮動課表
+                    </button>
+                    <button type="button" class="help-tab-btn" data-help-target="help-pane-import">
+                        <i class="fa-solid fa-file-import"></i> 資料匯入與備份
+                    </button>
+                    <button type="button" class="help-tab-btn" data-help-target="help-pane-export">
+                        <i class="fa-solid fa-file-export"></i> 課表與調代課匯出
+                    </button>
+                </div>
+
+                <!-- 說明內容面板 1: 快速上手 -->
+                <div id="help-pane-overview" class="help-pane active">
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-circle-play"></i> 系統簡介與核心特色</h4>
+                        <p>本系統專為國小手動排課調配情境打造，提供最直覺流暢的操作體驗與四大硬性衝突即時偵測：</p>
+                        <div class="help-feature-grid">
+                            <div class="help-feature-item">
+                                <i class="fa-solid fa-hand-pointer"></i>
+                                <strong>點選連點排課</strong>
+                                <span>點選左側課程卡片高亮後，直接在右側網格連點，快速排定多節課。</span>
+                            </div>
+                            <div class="help-feature-item">
+                                <i class="fa-solid fa-shield-halved"></i>
+                                <strong>硬性防呆偵測</strong>
+                                <span>班級、教師、專科教室衝堂與教師不排課時段即時警示阻擋。</span>
+                            </div>
+                            <div class="help-feature-item">
+                                <i class="fa-solid fa-arrows-split-up-and-left"></i>
+                                <strong>單雙週與分組</strong>
+                                <span>支援單週 (ODD)、雙週 (EVEN) 錯開排課，以及母語/社團分組教學排課。</span>
+                            </div>
+                            <div class="help-feature-item">
+                                <i class="fa-solid fa-window-restore"></i>
+                                <strong>右鍵浮動課表</strong>
+                                <span>任一課程按右鍵即可彈出教師/班級即時浮動課表，對照調配不切頁。</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-list-ol"></i> 排課標準流程</h4>
+                        <ol class="help-step-list">
+                            <li><strong>選擇班級</strong>：由上方班級選單切換至欲排課班級，或使用「下一班」按鈕循序推進。</li>
+                            <li><strong>選取排課週別</strong>：在待排池上方選擇「每週」、「單週」、「雙週」或「分組」。</li>
+                            <li><strong>選取科目與連點</strong>：點擊左側待排卡片（青色高亮），點擊右側課表格子立即排入。</li>
+                            <li><strong>浮動預覽對照</strong>：若需確認該任課教師課表，在卡片上按「滑鼠右鍵」點選「前往課表」即可浮動對照。</li>
+                            <li><strong>匯出與備份</strong>：排課完成後，至「系統設定」匯出備份 JSON、列印 PDF 課表或匯出調代課 TSV。</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <!-- 說明內容面板 2: 排課與衝突規則 -->
+                <div id="help-pane-rules" class="help-pane hidden">
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-clock"></i> 作息時段與全時段排課</h4>
+                        <ul class="help-bullet-list">
+                            <li><strong>時段結構</strong>：每日共 8 節課（上午第 1~5 節、中午午休、下午第 6~8 節）。</li>
+                            <li><strong>全時段開放</strong>：無任何年級下午放學遮罩，週一至週五第 1 至 8 節皆為可排課狀態。</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-triangle-exclamation"></i> 4 大硬性衝突偵測規則</h4>
+                        <div class="help-card-list">
+                            <div class="help-card">
+                                <strong>1. 班級衝突</strong>
+                                <span>同一班級在相同時段只能排定一堂課。（<b>分組課程 `GROUP` 除外</b>，允許同班同節多師同排）</span>
+                            </div>
+                            <div class="help-card">
+                                <strong>2. 教師衝突</strong>
+                                <span>同一位教師在相同時段只能在一處授課，不可跨班衝堂。</span>
+                            </div>
+                            <div class="help-card">
+                                <strong>3. 專科教室衝突</strong>
+                                <span>同一間專科教室（例如電腦教室、英語教室）在相同時段只能容納一門課程。</span>
+                            </div>
+                            <div class="help-card">
+                                <strong>4. 教師不排課時段</strong>
+                                <span>避開教師屬性中設定的不排課時段（如兼任行政或共同研習時間）。</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-tags"></i> 排課週別機制說明</h4>
+                        <ul class="help-bullet-list">
+                            <li><b style="color:var(--accent-blue);">每週 (EVERY)</b>：全學期每週上課，佔用該時段全部週次。</li>
+                            <li><b style="color:var(--accent-cyan);">單週 (ODD)</b>：僅單數週上課，可與雙週課程排在同一個時段共享課堂。</li>
+                            <li><b style="color:var(--accent-pink);">雙週 (EVEN)</b>：僅雙數週上課，可與單週課程排在同一個時段共享課堂。</li>
+                            <li><b style="color:#a78bfa;">分組 (GROUP)</b>：同班級可同節排多門課，課表內會以左右並列呈現。</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 說明內容面板 3: 右鍵與浮動課表 -->
+                <div id="help-pane-interact" class="help-pane hidden">
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-window-restore"></i> 彈出式可拖動浮動課表</h4>
+                        <p>排課時不再需要在班級與教師頁籤間頻繁來回切換：</p>
+                        <div class="help-guide-box">
+                            <div class="guide-item">
+                                <div class="guide-badge">班級課表排課</div>
+                                <span>在左側「待排課程卡片」或右側「已排課程」上點擊<strong>滑鼠右鍵</strong> ➔ 點選「<strong>前往課表</strong>」，右側將即時彈出該任課教師的浮動課表！</span>
+                            </div>
+                            <div class="guide-item">
+                                <div class="guide-badge">教師個人課表</div>
+                                <span>在左側「授課學科清單」或「已排課程」上點擊<strong>滑鼠右鍵</strong> ➔ 點選「<strong>前往課表</strong>」，右側將即時彈出該班級的浮動課表！</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-arrows-up-down-left-right"></i> 浮動視窗操作要點</h4>
+                        <ul class="help-bullet-list">
+                            <li><strong>自由拖曳</strong>：滑鼠按住浮動視窗頂部標題列即可拖動至螢幕任意位置。</li>
+                            <li><strong>最小化 / 展開</strong>：點擊標題列的「一」按鈕可折疊縮小視窗，不遮擋主畫面。</li>
+                            <li><strong>排課即時連動</strong>：在主畫面排課或取消排課時，浮動課表會自動同步更新，無須手動重整！</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-forward"></i> 下一班快速切換</h4>
+                        <p>班級課表右上角設有「<strong>下一班 <i class="fa-solid fa-chevron-right"></i></strong>」按鈕，可直接推進到下一班繼續排課。</p>
+                    </div>
+                </div>
+
+                <!-- 說明內容面板 4: 資料匯入與備份 -->
+                <div id="help-pane-import" class="help-pane hidden">
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-database"></i> 完整系統備份與還原 (JSON)</h4>
+                        <ul class="help-bullet-list">
+                            <li><strong>匯出系統備份</strong>：點擊「匯出系統備份 (JSON)」可下載目前所有班級、教師、教室、課程與排課資料。</li>
+                            <li><strong>匯入系統備份</strong>：點擊「匯入系統備份 (JSON)」彈出專屬視窗，可直接拖曳檔案上傳或貼上 JSON 代碼，並具備即時統計解析。</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-file-csv"></i> CSV 批次資料匯入三部曲</h4>
+                        <div class="help-card-list">
+                            <div class="help-card">
+                                <strong>1. 教師與不可排課</strong>
+                                <span><code>教師姓名, 週一, 週二, 週三, 週四, 週五</code><br>不可排課節次以分號隔開（如：<code>1;2</code>）。</span>
+                            </div>
+                            <div class="help-card">
+                                <strong>2. 專科教室</strong>
+                                <span><code>教室名稱, 類型</code><br>類型如：自然/音樂/美勞/體育/電腦/圖書館。</span>
+                            </div>
+                            <div class="help-card">
+                                <strong>3. 班級科目與任課</strong>
+                                <span><code>班級代號(或名稱), 科目, 節數, 教師, 教室</code><br>教室可留空，未填將自動對應班級教室。</span>
+                            </div>
+                        </div>
+                        <p class="helper-text" style="margin-top: 8px;">* 匯入功能內建 Big5 / ANSI / UTF-8 編碼自動判斷，避免 CSV 匯入亂碼。</p>
+                    </div>
+                </div>
+
+                <!-- 說明內容面板 5: 課表與調代課匯出 -->
+                <div id="help-pane-export" class="help-pane hidden">
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-file-pdf"></i> PDF 課表一鍵匯出 (A4 直向)</h4>
+                        <ul class="help-bullet-list">
+                            <li><strong>全體班級與專科教室 PDF</strong>：自動分頁產生各班級與各專科教室標準課表。</li>
+                            <li><strong>全體教師個人課表 PDF</strong>：自動分頁產生全體教師個人週課表與不排課時段標記。</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-arrows-rotate"></i> 調代課系統格式匯出 (TSV 純文字)</h4>
+                        <ul class="help-bullet-list">
+                            <li><strong>調代課教師課表 (TSV)</strong>：橫向展開教師週一至週五第 1～8 節授課科目與班級。</li>
+                            <li><strong>調代課課程資料庫 (TSV)</strong>：匯出所有排課記錄（班級、星期、節次、課程名稱、教師名稱），自動標註 <code>(單)</code> 與 <code>(雙)</code>。</li>
+                        </ul>
+                    </div>
+
+                    <div class="help-section">
+                        <h4><i class="fa-solid fa-code"></i> config.json 班級節次線上編輯</h4>
+                        <p>可直接在系統設定中修改 <code>config.json</code> 設定檔內容並儲存套用。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="custom-modal-footer">
+                <button type="button" class="btn btn-primary" id="btn-confirm-help-modal">
+                    <i class="fa-solid fa-check"></i> 我瞭解了
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=20260902_system_help_modal"></script>
 </body>
 
 </html>
