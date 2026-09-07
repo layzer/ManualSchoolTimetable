@@ -111,8 +111,22 @@
 ├── static/                 # 前端網頁靜態資源
 │   ├── index.html          # 主頁面 (含各視圖頁籤與 Modal)
 │   ├── style.css           # 毛玻璃極光風格樣式
-│   ├── app.js              # 前端事件、浮動課表與排課邏輯
-│   └── localforage.min.js  # IndexedDB 本地資料庫引擎
+│   ├── localforage.min.js  # IndexedDB 本地資料庫引擎
+│   └── js/                 # 原生 ES 模組化程式碼
+│       ├── main.js         # 前端主進入點與事件派發
+│       ├── state.js        # 全域狀態管理與 DOM 元素快取
+│       ├── storage.js      # localForage / IndexedDB 儲存層
+│       ├── conflict-engine.js # 衝突防呆核心引擎
+│       ├── utils.js        # Toast、日誌與快照還原工具
+│       ├── floating-window.js # 浮動課表視窗拖曳與渲染
+│       ├── context-menu.js # 右鍵選單定位與控制
+│       ├── tab-class-schedule.js    # 班級課表互動與排課
+│       ├── tab-teacher-schedule.js  # 教師課表與不排課時段
+│       ├── tab-classroom-schedule.js# 專科教室課表查詢
+│       ├── tab-teacher-summary.js   # 教師總表與課程矩陣
+│       ├── tab-curriculum.js        # 班級課程與節數設定
+│       ├── tab-settings.js          # 系統設定與說明 Modal
+│       └── import-export.js         # CSV/TSV/PDF/JSON 匯入匯出
 ├── tests/                  # 單元測試資料夾
 │   └── test_scheduler.py   # pytest 衝突檢測單元測試
 ├── 匯入格式/               # 範例 CSV 與匯入樣板檔案
