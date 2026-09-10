@@ -664,9 +664,13 @@ export function exportTeacherScheduleTsv() {
                     const entries = slotMap[key] || [];
                     if (entries.length > 0) {
                         entries.sort((a, b) => {
-                            if (a.weekType === "ODD" && b.weekType === "EVEN") return -1;
-                            if (a.weekType === "EVEN" && b.weekType === "ODD") return 1;
-                            return 0;
+                            const getWeekOrder = (item) => {
+                                const wt = String(item.weekType || "").toUpperCase();
+                                if (wt === "ODD" || (item.courseName && item.courseName.includes("(單)"))) return 0;
+                                if (wt === "EVEN" || (item.courseName && item.courseName.includes("(雙)"))) return 1;
+                                return 2;
+                            };
+                            return getWeekOrder(a) - getWeekOrder(b);
                         });
                         const courseNamesStr = entries.map(e => e.courseName).join("/");
                         const classNamesStr = entries.map(e => e.className).join("/");
@@ -705,7 +709,15 @@ export function exportCourseDatabaseTsv() {
     const sortedSchedules = [...state.schedules].sort((a, b) => {
         if (a.class_id !== b.class_id) return a.class_id > b.class_id ? 1 : -1;
         if (a.weekday !== b.weekday) return a.weekday - b.weekday;
-        return a.period - b.period;
+        if (a.period !== b.period) return a.period - b.period;
+        const getWeekOrder = (s) => {
+            const course = state.courses.find(c => c.id === s.course_id);
+            const wt = String(s.week_type || (course ? course.week_type : "") || "").toUpperCase();
+            if (wt === "ODD") return 0;
+            if (wt === "EVEN") return 1;
+            return 2;
+        };
+        return getWeekOrder(a) - getWeekOrder(b);
     });
 
     sortedSchedules.forEach(sched => {

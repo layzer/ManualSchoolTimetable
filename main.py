@@ -542,7 +542,16 @@ def export_teacher_schedule_tsv(db: Session = Depends(get_db)):
                     key = (wd, pd)
                     entries = slot_map.get(key, [])
                     if entries:
-                        entries.sort(key=lambda e: (0 if e[2] == "ODD" else (1 if e[2] == "EVEN" else 2)))
+                        def get_week_order(e):
+                            wt = (e[2] or "").upper()
+                            c_name = e[0] or ""
+                            if wt == "ODD" or "(單)" in c_name:
+                                return 0
+                            if wt == "EVEN" or "(雙)" in c_name:
+                                return 1
+                            return 2
+
+                        entries.sort(key=get_week_order)
                         course_names = "/".join(e[0] for e in entries)
                         class_names = "/".join(e[1] for e in entries)
                     else:
@@ -569,6 +578,16 @@ def export_course_database_tsv(db: Session = Depends(get_db)):
         models.Schedule.weekday,
         models.Schedule.period
     ).all()
+
+    def get_sched_week_order(sched):
+        w_type = (sched.week_type or (sched.course.week_type if sched.course else "") or "").upper()
+        if w_type == "ODD":
+            return 0
+        if w_type == "EVEN":
+            return 1
+        return 2
+
+    schedules.sort(key=lambda s: (s.class_id, s.weekday, s.period, get_sched_week_order(s)))
 
     classes_map = {c.id: c for c in db.query(models.Class).all()}
     teachers_map = {t.id: t for t in db.query(models.Teacher).all()}
